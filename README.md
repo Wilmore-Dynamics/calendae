@@ -1,7 +1,7 @@
 # <p align="center">Calendae</p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Wilmore-Dynamics/design/main/assets/logo-cream.svg" width="64" alt="Logo Calendae">
+  <img src="https://raw.githubusercontent.com/Wilmore-Dynamics/design/main/assets/logo-cream.svg" width="96" alt="Logo Calendae">
 </p> 
 
 <p align="center">
