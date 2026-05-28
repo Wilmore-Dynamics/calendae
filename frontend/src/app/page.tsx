@@ -1,34 +1,32 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/auth-context';
 import Calendar from '@/components/Calendar';
 
 export default function Home() {
+  const { user, isLoading } = useAuth();
   const router = useRouter();
-  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    fetch('/api/setup/status')
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.setup_required) {
-          router.replace('/setup');
-        } else {
-          setReady(true);
-        }
-      })
-      .catch(() => setReady(true));
-  }, [router]);
+    if (isLoading) return;
+    if (!user) {
+      router.replace('/auth/login');
+    }
+  }, [user, isLoading, router]);
 
-  if (!ready) return null;
+  if (isLoading || !user) return null;
 
   return (
     <div className="bg-sand-cream min-h-screen p-8 max-w-7xl mx-auto">
-      <section>
-        <h1 className="text-5xl font-medium tracking-tight mb-16">
+      <section className="mb-8">
+        <h1 className="text-5xl font-medium tracking-tight mb-2">
           Le calendrier souverain.
         </h1>
+        <p className="text-neutral-500">
+          Connecté en tant que {user.email}
+        </p>
       </section>
       <Calendar />
     </div>

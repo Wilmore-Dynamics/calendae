@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
@@ -8,12 +9,18 @@ import Avatar from '@/components/Avatar';
 import { CalendarDays, Users, Clock, ListOrdered } from 'lucide-react';
 
 export default function DashboardHome() {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
+  const router = useRouter();
   const [company, setCompany] = useState<api.Company | null>(null);
   const [members, setMembers] = useState<api.Member[]>([]);
   const [eventTypes, setEventTypes] = useState<api.EventType[]>([]);
   const [availabilities, setAvailabilities] = useState<api.Availability[]>([]);
   const [bookings, setBookings] = useState<api.Booking[]>([]);
+
+  useEffect(() => {
+    if (isLoading) return;
+    if (!user) router.replace('/auth/login');
+  }, [user, isLoading, router]);
 
   useEffect(() => {
     api.getCompany().then(setCompany).catch(() => {});
