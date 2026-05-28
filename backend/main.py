@@ -8,6 +8,7 @@ from datetime import datetime, timezone, timedelta, date as date_type
 from urllib.request import Request, urlopen
 from urllib.error import URLError
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException, status, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -168,9 +169,15 @@ def ensure_columns():
 
         conn.commit()
 
-ensure_columns()
 
-app = FastAPI(title="Calendae API")
+@asynccontextmanager
+async def run_migrations(app: FastAPI):
+    Base.metadata.create_all(bind=engine)
+    ensure_columns()
+    yield
+
+
+app = FastAPI(title="Calendae API", lifespan=run_migrations)
 
 origins = ["http://localhost:3000"]
 app.add_middleware(
