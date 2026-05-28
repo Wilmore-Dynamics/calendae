@@ -3,6 +3,7 @@ import smtplib
 import json
 import hmac
 import hashlib
+import time
 from email.message import EmailMessage
 from datetime import datetime, timezone, timedelta, date as date_type
 from urllib.request import Request, urlopen
@@ -172,8 +173,19 @@ def ensure_columns():
 
 @asynccontextmanager
 async def run_migrations(app: FastAPI):
-    Base.metadata.create_all(bind=engine)
-    ensure_columns()
+    last_error = None
+    for attempt in range(30):
+        try:
+            Base.metadata.create_all(bind=engine)
+            ensure_columns()
+            last_error = None
+            break
+        except Exception as e:
+            last_error = e
+            print(f"Database not ready (attempt {attempt + 1}/30), retrying in 2s...")
+            time.sleep(2)
+    if last_error:
+        raise last_error
     yield
 
 
