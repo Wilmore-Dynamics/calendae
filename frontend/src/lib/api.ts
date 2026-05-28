@@ -31,6 +31,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 export interface User {
   id: string;
   email: string;
+  slug: string;
   display_name: string | null;
   is_active: boolean;
   created_at: string;
@@ -358,8 +359,8 @@ export interface PublicProfile {
   event_types: EventType[];
 }
 
-export async function getPublicProfile(companySlug: string, userEmail: string): Promise<PublicProfile> {
-  return request<PublicProfile>(`/api/${companySlug}/${encodeURIComponent(userEmail)}/profile`);
+export async function getPublicProfile(slug: string): Promise<PublicProfile> {
+  return request<PublicProfile>(`/api/${slug}/profile`);
 }
 
 export interface AvailableSlots {
@@ -367,11 +368,11 @@ export interface AvailableSlots {
   slots: string[];
 }
 
-export async function getAvailableSlots(companySlug: string, userEmail: string, date: string): Promise<AvailableSlots> {
-  return request<AvailableSlots>(`/api/${companySlug}/${encodeURIComponent(userEmail)}/slots?date=${date}`);
+export async function getAvailableSlots(slug: string, date: string): Promise<AvailableSlots> {
+  return request<AvailableSlots>(`/api/${slug}/slots?date=${date}`);
 }
 
-export async function createBooking(companySlug: string, userEmail: string, data: {
+export async function createBooking(slug: string, data: {
   event_type_id: string;
   booker_name: string;
   booker_email: string;
@@ -379,7 +380,7 @@ export async function createBooking(companySlug: string, userEmail: string, data
   start_time: string;
   end_time: string;
 }): Promise<Booking> {
-  return request<Booking>(`/api/${companySlug}/${encodeURIComponent(userEmail)}/book`, {
+  return request<Booking>(`/api/${slug}/book`, {
     method: 'POST',
     body: JSON.stringify(data),
   });

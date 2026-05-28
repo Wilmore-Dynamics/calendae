@@ -55,15 +55,15 @@ export default function DashboardHome() {
   return (
     <div>
       <h1 className="text-2xl font-medium mb-2">{company.name}</h1>
-      {company.slug && user && (
+      {user?.slug && (
         <p className="text-sm text-neutral-400 mb-8">
           Page de réservation publique :{' '}
           <a
-            href={`/${company.slug}/${encodeURIComponent(user.email)}`}
+            href={`/${user.slug}`}
             target="_blank"
             className="underline hover:text-neutral-700"
           >
-            /{company.slug}/{encodeURIComponent(user.email)}
+            /{user.slug}
           </a>
         </p>
       )}

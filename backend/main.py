@@ -33,6 +33,16 @@ from auth import (
 )
 from config import FEATURES, STRIPE_WEBHOOK_SECRET
 
+
+def generate_slug(email: str, db: Session) -> str:
+    base = email.split("@")[0].lower().replace(".", "-")
+    slug = base
+    counter = 1
+    while db.query(User).filter(User.slug == slug).first():
+        slug = f"{base}{counter}"
+        counter += 1
+    return slug
+
 # ── Database migration helper ──
 
 def ensure_columns():
@@ -131,6 +141,8 @@ def ensure_columns():
                 alter.append("ADD COLUMN reminder_minutes INTEGER DEFAULT 10")
             if "max_bookings_per_day" not in cols:
                 alter.append("ADD COLUMN max_bookings_per_day INTEGER DEFAULT 0")
+            if "slug" not in cols:
+                alter.append("ADD COLUMN slug VARCHAR UNIQUE")
             if alter:
                 conn.execute(text(f"ALTER TABLE users {', '.join(alter)}"))
 
@@ -317,6 +329,7 @@ def run_setup(
 
     user = User(
         email=payload.email,
+        slug=generate_slug(payload.email, db),
         password_hash=hash_password(payload.password),
         display_name=payload.display_name or "Admin",
         company_id=company.id,
@@ -344,6 +357,7 @@ def register(payload: UserCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=409, detail="Email already registered")
     user = User(
         email=payload.email,
+        slug=generate_slug(payload.email, db),
         password_hash=hash_password(payload.password),
         display_name=payload.display_name,
     )
@@ -796,22 +810,20 @@ def cancel_booking(
 
 # ── Public Booking API ──
 
-@app.get("/api/{company_slug}/{user_email}/profile")
+@app.get("/api/{slug}/profile")
 def public_profile(
-    company_slug: str,
-    user_email: str,
+    slug: str,
     db: Session = Depends(get_db),
 ):
-    company = db.query(Company).filter(Company.slug == company_slug).first()
-    if not company:
-        raise HTTPException(status_code=404, detail="Company not found")
     user = db.query(User).filter(
-        User.email == user_email,
-        User.company_id == company.id,
+        User.slug == slug,
         User.is_active == True,
     ).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    company = db.query(Company).filter(Company.id == user.company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
     event_types = db.query(EventType).filter(
         EventType.company_id == company.id,
         EventType.is_active == True,
@@ -852,24 +864,22 @@ def public_profile(
         "features": FeaturesResponse(**FEATURES).model_dump(),
     }
 
-@app.get("/api/{company_slug}/{user_email}/slots")
+@app.get("/api/{slug}/slots")
 def available_slots(
-    company_slug: str,
-    user_email: str,
+    slug: str,
     date: str = Query(...),
     event_type_id: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
-    company = db.query(Company).filter(Company.slug == company_slug).first()
-    if not company:
-        raise HTTPException(status_code=404, detail="Company not found")
     user = db.query(User).filter(
-        User.email == user_email,
-        User.company_id == company.id,
+        User.slug == slug,
         User.is_active == True,
     ).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    company = db.query(Company).filter(Company.id == user.company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
 
     try:
         target_date = datetime.strptime(date, "%Y-%m-%d").date()
@@ -967,14 +977,19 @@ def available_slots(
 
     return {"date": date, "slots": slots, "timezone": user.timezone}
 
-@app.post("/api/{company_slug}/{user_email}/book", response_model=BookingResponse, status_code=201)
+@app.post("/api/{slug}/book", response_model=BookingResponse, status_code=201)
 def create_booking(
-    company_slug: str,
-    user_email: str,
+    slug: str,
     payload: PublicBookingRequest,
     db: Session = Depends(get_db),
 ):
-    company = db.query(Company).filter(Company.slug == company_slug).first()
+    user = db.query(User).filter(
+        User.slug == slug,
+        User.is_active == True,
+    ).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    company = db.query(Company).filter(Company.id == user.company_id).first()
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
 

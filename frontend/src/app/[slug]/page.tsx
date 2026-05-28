@@ -14,10 +14,9 @@ function todayString(): string {
 export default function PublicBookingPage({
   params,
 }: {
-  params: Promise<{ company: string; user: string }>;
+  params: Promise<{ slug: string }>;
 }) {
-  const { company: companySlug, user: userEmail } = use(params);
-  const decodedEmail = decodeURIComponent(userEmail);
+  const { slug } = use(params);
 
   const [profile, setProfile] = useState<api.PublicProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -42,21 +41,21 @@ export default function PublicBookingPage({
   };
 
   useEffect(() => {
-    api.getPublicProfile(companySlug, decodedEmail)
+    api.getPublicProfile(slug)
       .then(setProfile)
       .catch(() => setError('Page non trouvée'))
       .finally(() => setLoading(false));
-  }, [companySlug, decodedEmail]);
+  }, [slug]);
 
   useEffect(() => {
     if (!selectedType || !selectedDate) return;
     setLoadingSlots(true);
     setSelectedSlot(null);
-    api.getAvailableSlots(companySlug, decodedEmail, selectedDate)
+    api.getAvailableSlots(slug, selectedDate)
       .then((data) => setSlots(data.slots))
       .catch(() => setSlots([]))
       .finally(() => setLoadingSlots(false));
-  }, [selectedType, selectedDate, companySlug, decodedEmail]);
+    }, [selectedType, selectedDate, slug]);
 
   const handleBook = async () => {
     if (!selectedType || !selectedSlot) return;
@@ -64,7 +63,7 @@ export default function PublicBookingPage({
     const end = new Date(start.getTime() + selectedType.duration_minutes * 60000);
     setSubmitting(true);
     try {
-      const result = await api.createBooking(companySlug, decodedEmail, {
+      const result = await api.createBooking(slug, {
         event_type_id: selectedType.id,
         booker_name: bookerName,
         booker_email: bookerEmail,
