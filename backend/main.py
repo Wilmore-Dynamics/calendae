@@ -1066,13 +1066,15 @@ def create_booking(
     if FEATURES["buffer_times"] and (event_type.buffer_before > 0 or event_type.buffer_after > 0):
         buffer_start = payload.start_time - timedelta(minutes=event_type.buffer_before)
         buffer_end = payload.end_time + timedelta(minutes=event_type.buffer_after)
-        existing_bookings += db.query(Booking).filter(
+        buffer_query = db.query(Booking).filter(
             Booking.user_id == target_user.id,
             Booking.status == "confirmed",
             Booking.start_time < buffer_end,
             Booking.end_time > buffer_start,
-            Booking.id.notin_([b.id for b in existing_bookings] if existing_bookings else [-1]),
-        ).all()
+        )
+        if existing_bookings:
+            buffer_query = buffer_query.filter(Booking.id.notin_([b.id for b in existing_bookings]))
+        existing_bookings += buffer_query.all()
 
     if existing_bookings:
         raise HTTPException(status_code=409, detail="This time slot overlaps with an existing booking")
