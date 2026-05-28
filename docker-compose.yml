@@ -1,0 +1,55 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: calendae
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://user:password@db:5432/calendae
+      SECRET_KEY: ${SECRET_KEY:-changeme-in-production}
+      FEATURE_BUFFER_TIMES: ${FEATURE_BUFFER_TIMES:-true}
+      FEATURE_MIN_NOTICE: ${FEATURE_MIN_NOTICE:-true}
+      FEATURE_MAX_BOOKINGS: ${FEATURE_MAX_BOOKINGS:-true}
+      FEATURE_ROUND_ROBIN: ${FEATURE_ROUND_ROBIN:-false}
+      FEATURE_COLLECTIVE: ${FEATURE_COLLECTIVE:-false}
+      FEATURE_WEBHOOKS: ${FEATURE_WEBHOOKS:-false}
+      FEATURE_PAYMENTS: ${FEATURE_PAYMENTS:-false}
+      FEATURE_TIMEZONE_DETECTION: ${FEATURE_TIMEZONE_DETECTION:-true}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+    volumes:
+      - ./backend:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    depends_on:
+      - db
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    command: npm run dev
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
