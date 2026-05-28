@@ -359,7 +359,7 @@ export interface PublicProfile {
 }
 
 export async function getPublicProfile(companySlug: string, userEmail: string): Promise<PublicProfile> {
-  return request<PublicProfile>(`/api/${companySlug}/${userEmail}/profile`);
+  return request<PublicProfile>(`/api/${companySlug}/${encodeURIComponent(userEmail)}/profile`);
 }
 
 export interface AvailableSlots {
@@ -368,7 +368,7 @@ export interface AvailableSlots {
 }
 
 export async function getAvailableSlots(companySlug: string, userEmail: string, date: string): Promise<AvailableSlots> {
-  return request<AvailableSlots>(`/api/${companySlug}/${userEmail}/slots?date=${date}`);
+  return request<AvailableSlots>(`/api/${companySlug}/${encodeURIComponent(userEmail)}/slots?date=${date}`);
 }
 
 export async function createBooking(companySlug: string, userEmail: string, data: {
@@ -379,7 +379,7 @@ export async function createBooking(companySlug: string, userEmail: string, data
   start_time: string;
   end_time: string;
 }): Promise<Booking> {
-  return request<Booking>(`/api/${companySlug}/${userEmail}/book`, {
+  return request<Booking>(`/api/${companySlug}/${encodeURIComponent(userEmail)}/book`, {
     method: 'POST',
     body: JSON.stringify(data),
   });

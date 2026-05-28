@@ -54,7 +54,19 @@ export default function DashboardHome() {
 
   return (
     <div>
-      <h1 className="text-2xl font-medium mb-8">{company.name}</h1>
+      <h1 className="text-2xl font-medium mb-2">{company.name}</h1>
+      {company.slug && user && (
+        <p className="text-sm text-neutral-400 mb-8">
+          Page de réservation publique :{' '}
+          <a
+            href={`/${company.slug}/${encodeURIComponent(user.email)}`}
+            target="_blank"
+            className="underline hover:text-neutral-700"
+          >
+            /{company.slug}/{encodeURIComponent(user.email)}
+          </a>
+        </p>
+      )}
       <div className="grid grid-cols-2 gap-4 mb-10">
         {stats.map((s) => {
           const Icon = s.icon;
