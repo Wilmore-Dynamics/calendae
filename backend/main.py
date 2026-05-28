@@ -1,3 +1,4 @@
+import os
 import uuid
 import smtplib
 import json
@@ -191,7 +192,7 @@ async def run_migrations(app: FastAPI):
 
 app = FastAPI(title="Calendae API", lifespan=run_migrations)
 
-origins = ["http://localhost:3000"]
+origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,

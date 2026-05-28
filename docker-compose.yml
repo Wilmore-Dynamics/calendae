@@ -29,6 +29,7 @@ services:
       FEATURE_WEBHOOKS: ${FEATURE_WEBHOOKS:-false}
       FEATURE_PAYMENTS: ${FEATURE_PAYMENTS:-false}
       FEATURE_TIMEZONE_DETECTION: ${FEATURE_TIMEZONE_DETECTION:-true}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
     volumes:
       - ./backend:/app

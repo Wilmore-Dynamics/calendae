@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
+import { API_BASE } from '@/lib/api';
 
 export default function SetupPage() {
   const router = useRouter();
@@ -21,7 +22,7 @@ export default function SetupPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('http://localhost:8000/api/setup/status')
+    fetch(`${API_BASE}/api/setup/status`)
       .then((r) => r.json())
       .then((data) => {
         setSetupRequired(data.setup_required);
@@ -55,7 +56,7 @@ export default function SetupPage() {
 
     const params = new URLSearchParams({ company_name: companyName, company_slug: companySlug });
     try {
-      const res = await fetch(`http://localhost:8000/api/setup?${params}`, {
+      const res = await fetch(`${API_BASE}/api/setup?${params}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
