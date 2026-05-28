@@ -4,7 +4,6 @@ import { useState, useEffect, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
-import { API_BASE } from '@/lib/api';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -15,7 +14,7 @@ export default function LoginPage() {
   const router = useRouter();
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/setup/status`)
+    fetch('/api/setup/status')
       .then((r) => r.json())
       .then((data) => {
         if (data.setup_required) router.replace('/setup');

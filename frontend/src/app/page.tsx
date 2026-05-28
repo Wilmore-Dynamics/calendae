@@ -3,14 +3,13 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Calendar from '@/components/Calendar';
-import { API_BASE } from '@/lib/api';
 
 export default function Home() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/setup/status`)
+    fetch('/api/setup/status')
       .then((r) => r.json())
       .then((data) => {
         if (data.setup_required) {

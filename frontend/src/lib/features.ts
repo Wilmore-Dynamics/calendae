@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { API_BASE } from './api';
 
 export interface Features {
   buffer_times: boolean;
@@ -27,7 +26,7 @@ export function useFeatures(): Features {
   const [features, setFeatures] = useState<Features>(defaults);
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/config/features`)
+    fetch('/api/config/features')
       .then((r) => r.json())
       .then(setFeatures)
       .catch(() => {});

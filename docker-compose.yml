@@ -29,7 +29,6 @@ services:
       FEATURE_WEBHOOKS: ${FEATURE_WEBHOOKS:-false}
       FEATURE_PAYMENTS: ${FEATURE_PAYMENTS:-false}
       FEATURE_TIMEZONE_DETECTION: ${FEATURE_TIMEZONE_DETECTION:-true}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
     volumes:
       - ./backend:/app
@@ -44,8 +43,6 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
-    environment:
-      NEXT_PUBLIC_API_URL: ${API_URL:-http://localhost:8000}
     volumes:
       - ./frontend:/app
       - /app/node_modules

@@ -192,7 +192,8 @@ async def run_migrations(app: FastAPI):
 
 app = FastAPI(title="Calendae API", lifespan=run_migrations)
 
-origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+origins_str = os.getenv("CORS_ORIGINS", "*")
+origins = ["*"] if origins_str == "*" else origins_str.split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
