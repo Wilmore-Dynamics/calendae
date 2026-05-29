@@ -17,7 +17,7 @@ class UserLogin(BaseModel):
 class UserResponse(BaseModel):
     id: UUID
     email: str
-    slug: str
+    slug: Optional[str] = None
     display_name: Optional[str] = None
     is_active: bool
     created_at: datetime

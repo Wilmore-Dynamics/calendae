@@ -145,6 +145,17 @@ def ensure_columns():
                 alter.append("ADD COLUMN slug VARCHAR UNIQUE")
             if alter:
                 conn.execute(text(f"ALTER TABLE users {', '.join(alter)}"))
+            # Fill missing slugs for existing users
+            if "slug" in cols or "slug" in {c["name"] for c in inspector.get_columns("users")}:
+                null_users = conn.execute(text("SELECT id, email FROM users WHERE slug IS NULL")).fetchall()
+                for uid, uemail in null_users:
+                    base = uemail.split("@")[0].lower().replace(".", "-")
+                    slug = base
+                    counter = 1
+                    while conn.execute(text("SELECT 1 FROM users WHERE slug = :s"), {"s": slug}).fetchone():
+                        slug = f"{base}{counter}"
+                        counter += 1
+                    conn.execute(text("UPDATE users SET slug = :s WHERE id = :id"), {"s": slug, "id": uid})
 
         # Add columns to existing companies table
         if "companies" in tables:
