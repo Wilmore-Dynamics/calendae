@@ -1,4 +1,5 @@
-from pydantic import BaseModel, ConfigDict
+import json
+from pydantic import BaseModel, ConfigDict, field_validator
 from datetime import datetime, time
 from uuid import UUID
 from typing import Optional
@@ -113,6 +114,7 @@ class EventTypeCreate(BaseModel):
     assignment_type: str = "single"
     price_amount: Optional[int] = None
     price_currency: str = "eur"
+    custom_fields: Optional[list[dict]] = None
 
 class EventTypeResponse(BaseModel):
     id: UUID
@@ -131,8 +133,17 @@ class EventTypeResponse(BaseModel):
     assignment_type: str = "single"
     price_amount: Optional[int] = None
     price_currency: str = "eur"
+    custom_fields: Optional[list[dict]] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("custom_fields", mode="before")
+    @classmethod
+    def parse_custom_fields(cls, v):
+        if isinstance(v, str):
+            return json.loads(v) if v else None
+        return v
+
 
 # ── Availability ──
 
@@ -161,6 +172,7 @@ class PublicBookingRequest(BaseModel):
     start_time: datetime
     end_time: datetime
     timezone: str = "Europe/Paris"
+    custom_field_answers: Optional[dict] = None
 
 class BookingResponse(BaseModel):
     id: UUID
@@ -175,9 +187,17 @@ class BookingResponse(BaseModel):
     created_at: datetime
     manage_token: Optional[str] = None
     video_conference_url: Optional[str] = None
+    custom_field_answers: Optional[dict] = None
     event_type_title: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("custom_field_answers", mode="before")
+    @classmethod
+    def parse_custom_field_answers(cls, v):
+        if isinstance(v, str):
+            return json.loads(v) if v else None
+        return v
 
 # ── Member management ──
 

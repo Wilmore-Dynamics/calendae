@@ -22,6 +22,7 @@ export default function EventTypesPage() {
   const [priceAmount, setPriceAmount] = useState(0);
   const [priceCurrency, setPriceCurrency] = useState('eur');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [customFields, setCustomFields] = useState<api.FieldDef[]>([]);
   const [notification, setNotification] = useState<string | null>(null);
 
   const notify = (msg: string) => {
@@ -47,6 +48,7 @@ export default function EventTypesPage() {
     setAssignmentType('single');
     setPriceAmount(0);
     setPriceCurrency('eur');
+    setCustomFields([]);
     setEditingId(null);
     setShowForm(true);
   };
@@ -63,6 +65,7 @@ export default function EventTypesPage() {
     setAssignmentType(t.assignment_type);
     setPriceAmount(t.price_amount || 0);
     setPriceCurrency(t.price_currency);
+    setCustomFields(t.custom_fields || []);
     setEditingId(t.id);
     setShowForm(true);
   };
@@ -83,6 +86,7 @@ export default function EventTypesPage() {
         assignment_type: assignmentType,
         price_amount: features.payments ? priceAmount : undefined,
         price_currency: priceCurrency,
+        custom_fields: customFields.length > 0 ? customFields : undefined,
       };
       if (editingId) {
         await api.updateEventType(editingId, data);
@@ -197,6 +201,48 @@ export default function EventTypesPage() {
             </div>
           )}
 
+          <div className="border-t border-neutral-200 pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-sm font-medium text-neutral-700">Champs personnalisés (formulaires)</label>
+              <button type="button" onClick={() => setCustomFields([...customFields, { id: crypto.randomUUID(), label: '', type: 'text', required: false }])} className="text-xs text-neutral-500 hover:text-black transition-colors">
+                + Ajouter un champ
+              </button>
+            </div>
+            {customFields.length === 0 && <p className="text-xs text-neutral-400">Aucun champ personnalisé. Les visiteurs ne verront que le formulaire de réservation par défaut.</p>}
+            <div className="space-y-3">
+              {customFields.map((field, i) => (
+                <div key={field.id} className="border border-neutral-200 rounded-sm p-3 bg-neutral-50 grid grid-cols-12 gap-2 items-start">
+                  <div className="col-span-4">
+                    <input value={field.label} onChange={(e) => { const f = [...customFields]; f[i] = { ...f[i], label: e.target.value }; setCustomFields(f); }} placeholder="Label du champ" className="w-full border border-neutral-200 px-2 py-1.5 text-xs rounded-sm focus:border-neutral-400 focus:ring-0 transition-colors" />
+                  </div>
+                  <div className="col-span-3">
+                    <select value={field.type} onChange={(e) => { const f = [...customFields]; f[i] = { ...f[i], type: e.target.value as api.FieldDef['type'], options: e.target.value === 'select' || e.target.value === 'radio' || e.target.value === 'checkbox' ? f[i].options || [''] : undefined }; setCustomFields(f); }} className="w-full border border-neutral-200 px-2 py-1.5 text-xs rounded-sm focus:border-neutral-400 focus:ring-0 transition-colors bg-white">
+                      <option value="text">Texte</option>
+                      <option value="textarea">Zone de texte</option>
+                      <option value="select">Sélection</option>
+                      <option value="radio">Choix unique</option>
+                      <option value="checkbox">Cases à cocher</option>
+                      <option value="phone">Téléphone</option>
+                      <option value="number">Nombre</option>
+                    </select>
+                  </div>
+                  <div className="col-span-4 flex items-center gap-2">
+                    {(field.type === 'select' || field.type === 'radio' || field.type === 'checkbox') && (
+                      <input value={field.options?.join(', ') || ''} onChange={(e) => { const f = [...customFields]; f[i] = { ...f[i], options: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }; setCustomFields(f); }} placeholder="Options (séparées par des virgules)" className="w-full border border-neutral-200 px-2 py-1.5 text-xs rounded-sm focus:border-neutral-400 focus:ring-0 transition-colors" />
+                    )}
+                  </div>
+                  <div className="col-span-1 flex items-center gap-1">
+                    <label className="text-xs text-neutral-400 flex items-center gap-1 cursor-pointer">
+                      <input type="checkbox" checked={!!field.required} onChange={(e) => { const f = [...customFields]; f[i] = { ...f[i], required: e.target.checked }; setCustomFields(f); }} className="w-3 h-3" />
+                      Oblig.
+                    </label>
+                    <button type="button" onClick={() => setCustomFields(customFields.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 transition-colors text-xs ml-1">✕</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div className="flex gap-2 pt-2">
             <button type="submit" className="bg-neutral-900 text-white px-6 py-2 rounded-sm text-sm hover:bg-black transition-colors">{editingId ? 'Enregistrer' : 'Créer'}</button>
             <button type="button" onClick={() => setShowForm(false)} className="border border-neutral-200 px-6 py-2 rounded-sm text-sm hover:bg-neutral-100 transition-colors">Annuler</button>
@@ -213,6 +259,7 @@ export default function EventTypesPage() {
           if (t.assignment_type === 'round_robin') tags.push('Round-robin');
           if (t.assignment_type === 'collective') tags.push('Collectif');
           if (t.price_amount) tags.push(`${(t.price_amount / 100).toFixed(2)} ${t.price_currency.toUpperCase()}`);
+          if (t.custom_fields && t.custom_fields.length > 0) tags.push(`${t.custom_fields.length} champ${t.custom_fields.length > 1 ? 's' : ''} formulaire`);
 
           return (
             <div key={t.id} className="border border-neutral-200 rounded-sm p-4 bg-white flex items-center justify-between">

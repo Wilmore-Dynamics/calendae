@@ -197,6 +197,8 @@ def ensure_columns():
             ]:
                 if col not in cols:
                     conn.execute(text(f"ALTER TABLE event_types ADD COLUMN {col} {ddl}"))
+            if "custom_fields" not in cols:
+                conn.execute(text("ALTER TABLE event_types ADD COLUMN custom_fields TEXT"))
 
         # Add columns to existing events table
         if "events" in tables:
@@ -215,6 +217,8 @@ def ensure_columns():
                 conn.execute(text("ALTER TABLE bookings ADD COLUMN manage_token VARCHAR UNIQUE"))
             if "video_conference_url" not in cols:
                 conn.execute(text("ALTER TABLE bookings ADD COLUMN video_conference_url VARCHAR"))
+            if "custom_field_answers" not in cols:
+                conn.execute(text("ALTER TABLE bookings ADD COLUMN custom_field_answers TEXT"))
 
         conn.commit()
 
@@ -689,6 +693,7 @@ def create_event_type(
         assignment_type=payload.assignment_type if (FEATURES["round_robin"] or FEATURES["collective"]) else "single",
         price_amount=payload.price_amount if FEATURES["payments"] else None,
         price_currency=payload.price_currency if FEATURES["payments"] else "eur",
+        custom_fields=json.dumps(payload.custom_fields) if payload.custom_fields else None,
     )
     db.add(et)
     db.commit()
@@ -732,6 +737,7 @@ def update_event_type(
     et.assignment_type = payload.assignment_type if (FEATURES["round_robin"] or FEATURES["collective"]) else "single"
     et.price_amount = payload.price_amount if FEATURES["payments"] else None
     et.price_currency = payload.price_currency if FEATURES["payments"] else "eur"
+    et.custom_fields = json.dumps(payload.custom_fields) if payload.custom_fields else None
     db.commit()
     db.refresh(et)
     return et
@@ -983,6 +989,7 @@ def public_profile(
                 "assignment_type": et.assignment_type,
                 "price_amount": et.price_amount if FEATURES["payments"] else None,
                 "price_currency": et.price_currency if FEATURES["payments"] else "eur",
+                "custom_fields": json.loads(et.custom_fields) if et.custom_fields else None,
             }
             for et in event_types
         ],
@@ -1214,6 +1221,18 @@ def create_booking(
     if FEATURES["video_conferencing"]:
         video_conf_url = f"https://meet.jit.si/calendae-{uuid.uuid4().hex[:12]}"
 
+    field_answers = None
+    if payload.custom_field_answers:
+        enriched = {}
+        event_fields = {}
+        if event_type.custom_fields:
+            for f in (json.loads(event_type.custom_fields) if isinstance(event_type.custom_fields, str) else (event_type.custom_fields or [])):
+                event_fields[f["id"]] = f["label"]
+        for field_id, value in payload.custom_field_answers.items():
+            label = event_fields.get(field_id, field_id)
+            enriched[field_id] = {"label": label, "value": value}
+        field_answers = json.dumps(enriched)
+
     booking = Booking(
         event_type_id=event_type.id,
         user_id=target_user.id,
@@ -1224,6 +1243,7 @@ def create_booking(
         end_time=payload.end_time,
         manage_token=secrets.token_urlsafe(32),
         video_conference_url=video_conf_url,
+        custom_field_answers=field_answers,
     )
     db.add(booking)
     db.commit()

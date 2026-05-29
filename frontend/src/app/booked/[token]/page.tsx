@@ -90,6 +90,14 @@ export default function BookingManagePage({
           <p>{booking.booker_name}</p>
           <p>{booking.booker_email}</p>
           {booking.booker_phone && <p>{booking.booker_phone}</p>}
+          {booking.custom_field_answers && Object.keys(booking.custom_field_answers).length > 0 && (
+            <div className="border-t border-neutral-200 pt-3 mt-3 space-y-1">
+              {Object.entries(booking.custom_field_answers).map(([key, val]) => {
+                const v = val as { label?: string; value?: string };
+                return <p key={key} className="text-xs"><span className="text-neutral-500">{v.label || key}:</span> {v.value || String(val)}</p>;
+              })}
+            </div>
+          )}
         </div>
       </div>
 

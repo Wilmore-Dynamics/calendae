@@ -92,6 +92,7 @@ class EventType(Base):
     assignment_type = Column(String, default="single")
     price_amount = Column(Integer, nullable=True)
     price_currency = Column(String, default="eur")
+    custom_fields = Column(Text, nullable=True)
 
     company = relationship("Company", back_populates="event_types")
     bookings = relationship("Booking", back_populates="event_type")
@@ -123,6 +124,7 @@ class Booking(Base):
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     manage_token = Column(String, unique=True, nullable=False, index=True)
     video_conference_url = Column(String, nullable=True)
+    custom_field_answers = Column(Text, nullable=True)
     google_event_id = Column(String, nullable=True)
 
     event_type = relationship("EventType", back_populates="bookings")

@@ -31,6 +31,7 @@ export default function PublicBookingPage({
   const [bookerName, setBookerName] = useState('');
   const [bookerEmail, setBookerEmail] = useState('');
   const [bookerPhone, setBookerPhone] = useState('');
+  const [customFieldAnswers, setCustomFieldAnswers] = useState<Record<string, string>>({});
   const [booking, setBooking] = useState<api.Booking | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
@@ -70,6 +71,7 @@ export default function PublicBookingPage({
         booker_phone: bookerPhone || undefined,
         start_time: start.toISOString(),
         end_time: end.toISOString(),
+        custom_field_answers: Object.keys(customFieldAnswers).length > 0 ? customFieldAnswers : undefined,
       });
       setBooking(result);
       notify('Rendez-vous confirmé !');
@@ -121,6 +123,14 @@ export default function PublicBookingPage({
             <a href={booking.video_conference_url} target="_blank" className="inline-block mb-6 px-6 py-2.5 text-sm bg-neutral-900 text-white rounded-sm hover:bg-black transition-colors">
               Rejoindre la visioconférence
             </a>
+          )}
+          {booking.custom_field_answers && Object.keys(booking.custom_field_answers).length > 0 && (
+            <div className="border-t border-neutral-200 pt-4 mt-4 mb-4 space-y-1 text-left">
+              {Object.entries(booking.custom_field_answers).map(([key, val]) => {
+                const v = val as { label?: string; value?: string };
+                return <p key={key} className="text-xs text-neutral-500"><span className="font-medium">{v.label || key}:</span> {v.value || String(val)}</p>;
+              })}
+            </div>
           )}
           {booking.manage_token && (
             <a
@@ -208,6 +218,51 @@ export default function PublicBookingPage({
                   <div className="mb-8">
                     <h2 className="text-sm font-medium text-neutral-500 mb-3 uppercase tracking-wider">4. Vos informations</h2>
                     <div className="space-y-4">
+                      {selectedType.custom_fields && selectedType.custom_fields.length > 0 && (
+                        <div className="border border-neutral-200 rounded-sm p-4 bg-neutral-50 space-y-3 mb-4">
+                          <p className="text-xs font-medium text-neutral-500 uppercase tracking-wider">Informations complémentaires</p>
+                          {selectedType.custom_fields.map((field) => (
+                            <div key={field.id} className="flex flex-col gap-1.5">
+                              <label className="text-xs text-neutral-500">
+                                {field.label}
+                                {field.required && <span className="text-red-400 ml-0.5">*</span>}
+                              </label>
+                              {field.type === 'textarea' ? (
+                                <textarea value={customFieldAnswers[field.id] || ''} onChange={(e) => setCustomFieldAnswers({ ...customFieldAnswers, [field.id]: e.target.value })} rows={3} className="border border-neutral-200 px-3 py-1.5 text-sm rounded-sm focus:border-neutral-400 focus:ring-0 transition-colors" />
+                              ) : field.type === 'select' ? (
+                                <select value={customFieldAnswers[field.id] || ''} onChange={(e) => setCustomFieldAnswers({ ...customFieldAnswers, [field.id]: e.target.value })} className="border border-neutral-200 px-3 py-1.5 text-sm rounded-sm focus:border-neutral-400 focus:ring-0 transition-colors bg-white">
+                                  <option value="">---</option>
+                                  {(field.options || []).map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                                </select>
+                              ) : field.type === 'radio' ? (
+                                <div className="space-y-1">
+                                  {(field.options || []).map((opt) => (
+                                    <label key={opt} className="flex items-center gap-2 text-sm cursor-pointer">
+                                      <input type="radio" name={`cf-${field.id}`} value={opt} checked={customFieldAnswers[field.id] === opt} onChange={(e) => setCustomFieldAnswers({ ...customFieldAnswers, [field.id]: e.target.value })} className="w-3.5 h-3.5" />
+                                      {opt}
+                                    </label>
+                                  ))}
+                                </div>
+                              ) : field.type === 'checkbox' ? (
+                                <div className="space-y-1">
+                                  {(field.options || []).map((opt) => (
+                                    <label key={opt} className="flex items-center gap-2 text-sm cursor-pointer">
+                                      <input type="checkbox" value={opt} checked={(customFieldAnswers[field.id] || '').split(',').includes(opt)} onChange={(e) => {
+                                        const current = (customFieldAnswers[field.id] || '').split(',').filter(Boolean);
+                                        const next = e.target.checked ? [...current, opt] : current.filter(v => v !== opt);
+                                        setCustomFieldAnswers({ ...customFieldAnswers, [field.id]: next.join(',') });
+                                      }} className="w-3.5 h-3.5" />
+                                      {opt}
+                                    </label>
+                                  ))}
+                                </div>
+                              ) : (
+                                <input type={field.type === 'number' ? 'number' : field.type === 'phone' ? 'tel' : 'text'} value={customFieldAnswers[field.id] || ''} onChange={(e) => setCustomFieldAnswers({ ...customFieldAnswers, [field.id]: e.target.value })} className="border border-neutral-200 px-3 py-1.5 text-sm rounded-sm focus:border-neutral-400 focus:ring-0 transition-colors" />
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       <div className="flex flex-col gap-1.5">
                         <label className="text-xs text-neutral-400">Nom</label>
                         <input value={bookerName} onChange={(e) => setBookerName(e.target.value)} className="border border-neutral-200 px-4 py-2 rounded-sm focus:border-neutral-400 focus:ring-0 transition-colors" />
@@ -225,7 +280,7 @@ export default function PublicBookingPage({
 
                   <button
                     onClick={handleBook}
-                    disabled={submitting || !bookerName || !bookerEmail}
+                    disabled={submitting || !bookerName || !bookerEmail || (selectedType.custom_fields || []).some(f => f.required && !customFieldAnswers[f.id])}
                     className="w-full bg-neutral-900 text-white py-3 rounded-sm font-medium hover:bg-black transition-colors disabled:opacity-50"
                   >
                     {submitting ? 'Réservation...' : 'Confirmer le rendez-vous'}

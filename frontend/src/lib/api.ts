@@ -243,6 +243,15 @@ export interface EventType {
   assignment_type: string;
   price_amount: number | null;
   price_currency: string;
+  custom_fields?: FieldDef[];
+}
+
+export interface FieldDef {
+  id: string;
+  label: string;
+  type: "text" | "textarea" | "select" | "radio" | "checkbox" | "phone" | "number";
+  options?: string[];
+  required?: boolean;
 }
 
 export async function createEventType(data: {
@@ -257,6 +266,7 @@ export async function createEventType(data: {
   assignment_type?: string;
   price_amount?: number;
   price_currency?: string;
+  custom_fields?: FieldDef[];
 }): Promise<EventType> {
   return request<EventType>('/api/event-types', {
     method: 'POST',
@@ -280,6 +290,7 @@ export async function updateEventType(id: string, data: {
   assignment_type?: string;
   price_amount?: number;
   price_currency?: string;
+  custom_fields?: FieldDef[];
 }): Promise<EventType> {
   return request<EventType>(`/api/event-types/${id}`, {
     method: 'PUT',
@@ -340,6 +351,7 @@ export interface Booking {
   manage_token?: string;
   video_conference_url?: string;
   event_type_title?: string;
+  custom_field_answers?: Record<string, { label?: string; value?: string }>;
 }
 
 export async function listMyBookings(): Promise<Booking[]> {
@@ -383,6 +395,7 @@ export async function createBooking(slug: string, data: {
   booker_phone?: string;
   start_time: string;
   end_time: string;
+  custom_field_answers?: Record<string, string>;
 }): Promise<Booking> {
   return request<Booking>(`/api/${slug}/book`, {
     method: 'POST',
