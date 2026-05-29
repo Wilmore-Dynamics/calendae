@@ -176,6 +176,19 @@ class PublicBookingRequest(BaseModel):
     timezone: str = "Europe/Paris"
     custom_field_answers: Optional[dict] = None
 
+class DayOffCreate(BaseModel):
+    date: str  # YYYY-MM-DD
+    reason: Optional[str] = None
+
+class DayOffResponse(BaseModel):
+    id: UUID
+    user_id: UUID
+    date: datetime
+    reason: Optional[str] = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
 class BookingResponse(BaseModel):
     id: UUID
     event_type_id: UUID

@@ -412,3 +412,26 @@ export async function createBooking(slug: string, data: {
     body: JSON.stringify(data),
   });
 }
+
+export interface DayOff {
+  id: string;
+  user_id: string;
+  date: string;
+  reason: string | null;
+  created_at: string;
+}
+
+export async function listMyDaysOff(): Promise<DayOff[]> {
+  return request<DayOff[]>('/api/days-off');
+}
+
+export async function createDayOff(date: string, reason?: string): Promise<DayOff> {
+  return request<DayOff>('/api/days-off', {
+    method: 'POST',
+    body: JSON.stringify({ date, reason }),
+  });
+}
+
+export async function deleteDayOff(id: string): Promise<void> {
+  return request<void>(`/api/days-off/${id}`, { method: 'DELETE' });
+}

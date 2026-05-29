@@ -56,6 +56,7 @@ class User(Base):
     company = relationship("Company", back_populates="members")
     events = relationship("Event", back_populates="owner")
     availabilities = relationship("Availability", back_populates="user")
+    days_off = relationship("DayOff", back_populates="user")
     bookings = relationship("Booking", back_populates="collaborator")
 
 class Event(Base):
@@ -109,6 +110,17 @@ class Availability(Base):
     is_active = Column(Boolean, default=True)
 
     user = relationship("User", back_populates="availabilities")
+
+class DayOff(Base):
+    __tablename__ = "days_off"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    date = Column(DateTime(timezone=True), nullable=False)
+    reason = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    user = relationship("User", back_populates="days_off")
 
 class Booking(Base):
     __tablename__ = "bookings"

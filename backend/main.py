@@ -22,7 +22,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import text, inspect as sa_inspect
 from database import engine, get_db, Base
-from models import User, Event, Company, EventType, Availability, Booking
+from models import User, Event, Company, EventType, Availability, DayOff, Booking
 from schemas import (
     EventCreate, EventResponse, UserCreate, UserLogin,
     UserResponse, TokenResponse, RefreshRequest,
@@ -31,7 +31,7 @@ from schemas import (
     AvailabilityCreate, AvailabilityResponse,
     PublicBookingRequest, BookingResponse,
     MemberResponse, UpdateMemberRole, UpdateUserSettings,
-    FeaturesResponse,
+    FeaturesResponse, DayOffCreate, DayOffResponse,
 )
 from auth import (
     hash_password, verify_password, create_access_token,
@@ -135,6 +135,15 @@ def ensure_columns():
                 start_time TIMESTAMPTZ NOT NULL,
                 end_time TIMESTAMPTZ NOT NULL,
                 status VARCHAR DEFAULT 'confirmed',
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """,
+        "days_off": """
+            CREATE TABLE IF NOT EXISTS days_off (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id UUID NOT NULL REFERENCES users(id),
+                date TIMESTAMPTZ NOT NULL,
+                reason VARCHAR,
                 created_at TIMESTAMPTZ DEFAULT NOW()
             )
         """,
@@ -938,7 +947,187 @@ def delete_availability(
     av.is_active = False
     db.commit()
 
-# ── Personal Events ──
+# ── Admin: Manage member availability ──
+
+@app.get("/api/companies/members/{member_id}/availability", response_model=list[AvailabilityResponse])
+def admin_list_member_availability(
+    member_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_admin(current_user)
+    member = db.query(User).filter(User.id == member_id, User.company_id == current_user.company_id).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+    return db.query(Availability).filter(
+        Availability.user_id == member_id,
+        Availability.is_active == True,
+    ).order_by(Availability.day_of_week, Availability.start_time).all()
+
+@app.post("/api/companies/members/{member_id}/availability", response_model=AvailabilityResponse, status_code=201)
+def admin_create_member_availability(
+    member_id: uuid.UUID,
+    payload: AvailabilityCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_admin(current_user)
+    member = db.query(User).filter(User.id == member_id, User.company_id == current_user.company_id).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+    av = Availability(
+        user_id=member_id,
+        day_of_week=payload.day_of_week,
+        start_time=payload.start_time,
+        end_time=payload.end_time,
+    )
+    db.add(av)
+    db.commit()
+    db.refresh(av)
+    return av
+
+@app.put("/api/companies/members/{member_id}/availability/{avail_id}", response_model=AvailabilityResponse)
+def admin_update_member_availability(
+    member_id: uuid.UUID,
+    avail_id: uuid.UUID,
+    payload: AvailabilityCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_admin(current_user)
+    member = db.query(User).filter(User.id == member_id, User.company_id == current_user.company_id).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+    av = db.query(Availability).filter(Availability.id == avail_id, Availability.user_id == member_id).first()
+    if not av:
+        raise HTTPException(status_code=404, detail="Availability not found")
+    av.day_of_week = payload.day_of_week
+    av.start_time = payload.start_time
+    av.end_time = payload.end_time
+    db.commit()
+    db.refresh(av)
+    return av
+
+@app.delete("/api/companies/members/{member_id}/availability/{avail_id}", status_code=204)
+def admin_delete_member_availability(
+    member_id: uuid.UUID,
+    avail_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_admin(current_user)
+    member = db.query(User).filter(User.id == member_id, User.company_id == current_user.company_id).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+    av = db.query(Availability).filter(Availability.id == avail_id, Availability.user_id == member_id).first()
+    if not av:
+        raise HTTPException(status_code=404, detail="Availability not found")
+    av.is_active = False
+    db.commit()
+
+# ── Days Off ──
+
+@app.get("/api/days-off", response_model=list[DayOffResponse])
+def list_days_off(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return db.query(DayOff).filter(DayOff.user_id == current_user.id).order_by(DayOff.date).all()
+
+@app.post("/api/days-off", response_model=DayOffResponse, status_code=201)
+def create_day_off(
+    payload: DayOffCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        date = datetime.strptime(payload.date, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date (use YYYY-MM-DD)")
+    existing = db.query(DayOff).filter(
+        DayOff.user_id == current_user.id,
+        DayOff.date >= datetime.combine(date, datetime.min.time(), tzinfo=timezone.utc),
+        DayOff.date < datetime.combine(date, datetime.min.time(), tzinfo=timezone.utc) + timedelta(days=1),
+    ).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Day off already exists for this date")
+    do = DayOff(
+        user_id=current_user.id,
+        date=datetime.combine(date, datetime.min.time(), tzinfo=timezone.utc),
+        reason=payload.reason,
+    )
+    db.add(do)
+    db.commit()
+    db.refresh(do)
+    return do
+
+@app.delete("/api/days-off/{day_off_id}", status_code=204)
+def delete_day_off(
+    day_off_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    do = db.query(DayOff).filter(DayOff.id == day_off_id, DayOff.user_id == current_user.id).first()
+    if not do:
+        raise HTTPException(status_code=404, detail="Day off not found")
+    db.delete(do)
+    db.commit()
+
+# ── Admin: Manage member days off ──
+
+@app.get("/api/companies/members/{member_id}/days-off", response_model=list[DayOffResponse])
+def admin_list_member_days_off(
+    member_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_admin(current_user)
+    member = db.query(User).filter(User.id == member_id, User.company_id == current_user.company_id).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+    return db.query(DayOff).filter(DayOff.user_id == member_id).order_by(DayOff.date).all()
+
+@app.post("/api/companies/members/{member_id}/days-off", response_model=DayOffResponse, status_code=201)
+def admin_create_member_day_off(
+    member_id: uuid.UUID,
+    payload: DayOffCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_admin(current_user)
+    member = db.query(User).filter(User.id == member_id, User.company_id == current_user.company_id).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+    try:
+        date = datetime.strptime(payload.date, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date (use YYYY-MM-DD)")
+    do = DayOff(
+        user_id=member_id,
+        date=datetime.combine(date, datetime.min.time(), tzinfo=timezone.utc),
+        reason=payload.reason,
+    )
+    db.add(do)
+    db.commit()
+    db.refresh(do)
+    return do
+
+@app.delete("/api/companies/members/{member_id}/days-off/{day_off_id}", status_code=204)
+def admin_delete_member_day_off(
+    member_id: uuid.UUID,
+    day_off_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_admin(current_user)
+    member = db.query(User).filter(User.id == member_id, User.company_id == current_user.company_id).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+    do = db.query(DayOff).filter(DayOff.id == day_off_id, DayOff.user_id == member_id).first()
+    if not do:
+        raise HTTPException(status_code=404, detail="Day off not found")
+    db.delete(do)
+    db.commit()
 
 @app.post("/api/events", response_model=EventResponse, status_code=201)
 def create_event(
@@ -1159,6 +1348,15 @@ def available_slots(
         Availability.is_active == True,
     ).all()
 
+    # Check if user has this day off
+    day_off = db.query(DayOff).filter(
+        DayOff.user_id == user.id,
+        DayOff.date >= datetime.combine(target_date, datetime.min.time(), tzinfo=timezone.utc),
+        DayOff.date < datetime.combine(target_date, datetime.min.time(), tzinfo=timezone.utc) + timedelta(days=1),
+    ).first()
+    if day_off:
+        return {"date": date, "slots": []}
+
     existing_bookings = db.query(Booking).filter(
         Booking.user_id == user.id,
         Booking.status == "confirmed",
@@ -1303,6 +1501,16 @@ def create_booking(
         min_allowed = datetime.now(timezone.utc) + timedelta(minutes=event_type.min_notice_minutes)
         if payload.start_time < min_allowed:
             raise HTTPException(status_code=400, detail=f"Please book at least {event_type.min_notice_minutes} minutes in advance")
+
+    # Check if target user has this date as day off
+    booking_date = payload.start_time.date()
+    day_off = db.query(DayOff).filter(
+        DayOff.user_id == target_user.id,
+        DayOff.date >= datetime.combine(booking_date, datetime.min.time(), tzinfo=timezone.utc),
+        DayOff.date < datetime.combine(booking_date, datetime.min.time(), tzinfo=timezone.utc) + timedelta(days=1),
+    ).first()
+    if day_off:
+        raise HTTPException(status_code=400, detail="This collaborator is not available on this date")
 
     # Validate max bookings per day
     if FEATURES["max_bookings"] and event_type.max_bookings_per_day > 0:
