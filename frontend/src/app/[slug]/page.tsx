@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect, use, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import * as api from '@/lib/api';
 import Avatar from '@/components/Avatar';
@@ -38,6 +38,14 @@ export default function PublicBookingPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = use(params);
+  return (
+    <Suspense fallback={<div className="max-w-lg mx-auto px-6 py-20 text-center text-neutral-400">Chargement...</div>}>
+      <BookingPageContent slug={slug} />
+    </Suspense>
+  );
+}
+
+function BookingPageContent({ slug }: { slug: string }) {
   const searchParams = useSearchParams();
 
   const [profile, setProfile] = useState<api.PublicProfile | null>(null);
@@ -57,6 +65,17 @@ export default function PublicBookingPage({
   const [booking, setBooking] = useState<api.Booking | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
+
+  const isEmbed = searchParams?.get('embed') === '1';
+  const brandColorParam = searchParams?.get('brand_color');
+
+  // Post message to parent iframe for height resize
+  const postResize = () => {
+    if (!isEmbed) return;
+    const h = document.documentElement.scrollHeight;
+    parent.postMessage({ type: 'calendae-resize', height: h }, '*');
+  };
+  useEffect(() => { postResize(); }, [selectedType, selectedSlot, booking, loading, error]);
 
   const notify = (msg: string) => {
     setNotification(msg);
@@ -131,10 +150,12 @@ export default function PublicBookingPage({
   if (error) return <div className="max-w-lg mx-auto px-6 py-20 text-center text-neutral-500">{error}</div>;
   if (!profile) return null;
 
-  const brandColor = profile.company.brand_color || '#B8D4E3';
+  const brandColor = brandColorParam
+    ? '#' + brandColorParam
+    : (profile?.company.brand_color || '#B8D4E3');
 
   return (
-    <div className="max-w-lg mx-auto px-6 py-12">
+    <div className={isEmbed ? 'max-w-lg mx-auto px-4 py-4' : 'max-w-lg mx-auto px-6 py-12'}>
       {/* Company header */}
       <div className="text-center mb-10">
         {profile.company.logo_url && (

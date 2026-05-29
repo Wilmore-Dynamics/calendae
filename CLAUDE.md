@@ -82,9 +82,10 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - [x] Minimum notice delay
 - [x] Max bookings per day
 - [ ] Slot limiter (par semaine/mois)
-- [ ] Custom time increments (5, 10, 15, 30, 60 min)
-- [ ] Multiples plages par jour (ex: Lun 9-12 ET 14-18)
-- [ ] Timezone detection automatique + DST
+- [x] Custom time increments (5, 10, 15, 30, 60 min)
+- [x] Multiples plages par jour (ex: Lun 9-12 ET 14-18)
+- [x] Timezone detection automatique + DST
+- [x] Absences / jours non disponibles
 - [ ] Disponibilités par type d'événement (calendriers spécifiques)
 
 ## Types d'événements & Logique d'équipe
@@ -99,9 +100,9 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 ## Formulaires & Routage
 - [x] Champs personnalisés (text, textarea, select, radio, checkbox, phone, number)
 - [ ] Logique conditionnelle (si réponse X → router vers agenda Y)
-- [ ] Routage par URL / pré-remplissage (?name=John&email=...)
+- [x] Routage par URL / pré-remplissage (?name=John&email=...)
 - [ ] Filtrage des invités selon réponses
-- [ ] Embed JS (widget iframe/pop-in/DOM)
+- [x] Embed JS (widget iframe/pop-in/DOM)
 
 ## Workflows & Automatisation
 - [ ] Déclencheurs (Triggers) : création, X temps avant, X temps après, annulation, déplacement

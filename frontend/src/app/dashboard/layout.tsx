@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import { CalendarDays, Users, Settings, Clock, ListOrdered } from 'lucide-react';
+import { CalendarDays, Users, Settings, Clock, ListOrdered, Code } from 'lucide-react';
 
 const nav = [
   { href: '/dashboard', label: 'Vue d\'ensemble', icon: CalendarDays },
@@ -11,6 +11,7 @@ const nav = [
   { href: '/dashboard/availability', label: 'Disponibilités', icon: Clock },
   { href: '/dashboard/team', label: 'Équipe', icon: Users },
   { href: '/dashboard/settings', label: 'Paramètres', icon: Settings },
+  { href: '/dashboard/embed', label: 'Intégration', icon: Code },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
