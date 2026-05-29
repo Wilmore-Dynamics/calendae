@@ -8,6 +8,7 @@ import hmac
 import hashlib
 import time
 import secrets
+from typing import Optional
 from email.message import EmailMessage
 from datetime import datetime, timezone, timedelta, date as date_type
 from urllib.request import Request, urlopen
