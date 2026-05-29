@@ -1,5 +1,6 @@
 import os
 import uuid
+import logging
 import smtplib
 import json
 import hmac
@@ -38,6 +39,9 @@ from google_calendar import (
     GOOGLE_CLIENT_ID, get_flow, get_credentials, fetch_busy_events,
     create_calendar_event, delete_calendar_event,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 def generate_slug(email: str, db: Session) -> str:
@@ -268,6 +272,7 @@ def require_admin(user: User):
 
 def send_invitation_email(company: Company, to_email: str, inviter_name: str):
     if not company.smtp_host or not company.smtp_user or not company.smtp_password:
+        logger.warning("send_invitation_email: SMTP not configured for company %s", company.id)
         return
     msg = EmailMessage()
     msg["Subject"] = f"Invitation à rejoindre {company.name} sur Calendae"
@@ -279,16 +284,18 @@ def send_invitation_email(company: Company, to_email: str, inviter_name: str):
         f"– Calendae"
     )
     try:
-        with smtplib.SMTP(company.smtp_host, company.smtp_port or 587) as server:
+        with smtplib.SMTP(company.smtp_host, company.smtp_port or 587, timeout=15) as server:
             server.starttls()
             server.login(company.smtp_user, company.smtp_password)
             server.send_message(msg)
-    except Exception:
-        pass
+        logger.info("Invitation email sent to %s via %s", to_email, company.smtp_host)
+    except Exception as e:
+        logger.error("Failed to send invitation email to %s: %s", to_email, e)
 
 
 def send_booking_confirmation(company: Company, target_user: User, booking: Booking, event_type: EventType, base_url: str = ""):
     if not company.smtp_host or not company.smtp_user or not company.smtp_password:
+        logger.warning("send_booking_confirmation: SMTP not configured for company %s", company.id)
         return
     manage_url = f"{base_url}/booked/{booking.manage_token}"
     msg = EmailMessage()
@@ -309,12 +316,13 @@ def send_booking_confirmation(company: Company, target_user: User, booking: Book
     )
     msg.set_content(content)
     try:
-        with smtplib.SMTP(company.smtp_host, company.smtp_port or 587) as server:
+        with smtplib.SMTP(company.smtp_host, company.smtp_port or 587, timeout=15) as server:
             server.starttls()
             server.login(company.smtp_user, company.smtp_password)
             server.send_message(msg)
-    except Exception:
-        pass
+        logger.info("Booking confirmation email sent to %s via %s", booking.booker_email, company.smtp_host)
+    except Exception as e:
+        logger.error("Failed to send booking confirmation to %s: %s", booking.booker_email, e)
 
 
 def send_webhook(company: Company, event: str, payload: dict):

@@ -51,6 +51,13 @@ export default function SettingsPage() {
         setCustomDomain(c.custom_domain || '');
         setBrandColor(c.brand_color || '');
         setLogoUrl(c.logo_url || '');
+        setWebhookUrl(c.webhook_url || '');
+        setStripePublishableKey(c.stripe_publishable_key || '');
+        setStripeSecretKey(c.stripe_secret_key || '');
+        setSmtpHost(c.smtp_host || '');
+        setSmtpPort(c.smtp_port || 587);
+        setSmtpUser(c.smtp_user || '');
+        setSmtpPassword(c.smtp_password || '');
       })
       .catch(() => {})
       .finally(() => setLoading(false));

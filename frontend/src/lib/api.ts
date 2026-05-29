@@ -155,6 +155,11 @@ export interface Company {
   custom_domain: string | null;
   webhook_url: string | null;
   stripe_publishable_key: string | null;
+  stripe_secret_key: string | null;
+  smtp_host: string | null;
+  smtp_port: number | null;
+  smtp_user: string | null;
+  smtp_password: string | null;
   created_at: string;
 }
 
