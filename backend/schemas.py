@@ -30,6 +30,7 @@ class UserResponse(BaseModel):
     reminder_email: bool = True
     reminder_minutes: int = 10
     max_bookings_per_day: int = 0
+    google_calendar_sync_enabled: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -201,6 +202,7 @@ class UpdateUserSettings(BaseModel):
     reminder_email: Optional[bool] = None
     reminder_minutes: Optional[int] = None
     max_bookings_per_day: Optional[int] = None
+    google_calendar_sync_enabled: Optional[bool] = None
     password: Optional[str] = None
 
 # ── Features ──

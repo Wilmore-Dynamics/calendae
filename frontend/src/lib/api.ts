@@ -44,6 +44,7 @@ export interface User {
   reminder_email: boolean;
   reminder_minutes: number;
   max_bookings_per_day: number;
+  google_calendar_sync_enabled: boolean;
 }
 
 export interface TokenResponse {

@@ -48,6 +48,10 @@ class User(Base):
     reminder_email = Column(Boolean, default=True)
     reminder_minutes = Column(Integer, default=10)
     max_bookings_per_day = Column(Integer, default=0)
+    google_access_token = Column(Text, nullable=True)
+    google_refresh_token = Column(Text, nullable=True)
+    google_calendar_id = Column(String, default="primary")
+    google_calendar_sync_enabled = Column(Boolean, default=False)
 
     company = relationship("Company", back_populates="members")
     events = relationship("Event", back_populates="owner")
@@ -117,6 +121,7 @@ class Booking(Base):
     end_time = Column(DateTime(timezone=True), nullable=False)
     status = Column(String, default="confirmed")
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    google_event_id = Column(String, nullable=True)
 
     event_type = relationship("EventType", back_populates="bookings")
     collaborator = relationship("User", back_populates="bookings")

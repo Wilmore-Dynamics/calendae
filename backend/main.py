@@ -13,6 +13,7 @@ from urllib.error import URLError
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException, status, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import text, inspect as sa_inspect
 from database import engine, get_db, Base
@@ -32,6 +33,10 @@ from auth import (
     create_refresh_token, decode_token, get_current_user,
 )
 from config import FEATURES, STRIPE_WEBHOOK_SECRET
+from google_calendar import (
+    GOOGLE_CLIENT_ID, get_flow, get_credentials, fetch_busy_events,
+    create_calendar_event, delete_calendar_event,
+)
 
 
 def generate_slug(email: str, db: Session) -> str:
@@ -143,6 +148,14 @@ def ensure_columns():
                 alter.append("ADD COLUMN max_bookings_per_day INTEGER DEFAULT 0")
             if "slug" not in cols:
                 alter.append("ADD COLUMN slug VARCHAR UNIQUE")
+            if "google_access_token" not in cols:
+                alter.append("ADD COLUMN google_access_token TEXT")
+            if "google_refresh_token" not in cols:
+                alter.append("ADD COLUMN google_refresh_token TEXT")
+            if "google_calendar_id" not in cols:
+                alter.append("ADD COLUMN google_calendar_id VARCHAR DEFAULT 'primary'")
+            if "google_calendar_sync_enabled" not in cols:
+                alter.append("ADD COLUMN google_calendar_sync_enabled BOOLEAN DEFAULT FALSE")
             if alter:
                 conn.execute(text(f"ALTER TABLE users {', '.join(alter)}"))
             # Fill missing slugs for existing users
@@ -191,6 +204,12 @@ def ensure_columns():
                 conn.execute(text("ALTER TABLE events ADD COLUMN company_id UUID REFERENCES companies(id)"))
             if "visibility" not in cols:
                 conn.execute(text("ALTER TABLE events ADD COLUMN visibility VARCHAR DEFAULT 'personal'"))
+
+        # Add columns to existing bookings table
+        if "bookings" in tables:
+            cols = {c["name"] for c in inspector.get_columns("bookings")}
+            if "google_event_id" not in cols:
+                conn.execute(text("ALTER TABLE bookings ADD COLUMN google_event_id VARCHAR"))
 
         conn.commit()
 
@@ -433,6 +452,55 @@ def update_me(
     db.commit()
     db.refresh(current_user)
     return current_user
+
+
+# ── Google Calendar OAuth ──
+
+@app.get("/api/auth/google/authorize")
+def google_authorize(current_user: User = Depends(get_current_user)):
+    if not GOOGLE_CLIENT_ID:
+        raise HTTPException(status_code=400, detail="Google Calendar not configured")
+    flow = get_flow()
+    authorization_url, state = flow.authorization_url(
+        access_type="offline",
+        include_granted_scopes="true",
+        prompt="consent",
+    )
+    return {"url": authorization_url}
+
+
+@app.get("/api/auth/google/callback")
+def google_callback(code: str, state: str | None = None,
+                    db: Session = Depends(get_db),
+                    current_user: User = Depends(get_current_user)):
+    flow = get_flow()
+    flow.fetch_token(code=code)
+    creds = flow.credentials
+    current_user.google_access_token = creds.token
+    current_user.google_refresh_token = creds.refresh_token
+    current_user.google_calendar_sync_enabled = True
+    db.commit()
+    return RedirectResponse(url="/dashboard/settings?calendar=connected")
+
+
+@app.post("/api/auth/google/disconnect", status_code=200)
+def google_disconnect(db: Session = Depends(get_db),
+                       current_user: User = Depends(get_current_user)):
+    current_user.google_access_token = None
+    current_user.google_refresh_token = None
+    current_user.google_calendar_sync_enabled = False
+    db.commit()
+    return {"status": "disconnected"}
+
+
+@app.get("/api/auth/google/status")
+def google_status(current_user: User = Depends(get_current_user)):
+    return {
+        "connected": bool(current_user.google_access_token),
+        "calendar_id": current_user.google_calendar_id or "primary",
+        "sync_enabled": current_user.google_calendar_sync_enabled,
+    }
+
 
 # ── Company ──
 
@@ -809,6 +877,16 @@ def cancel_booking(
     booking.status = "cancelled"
     db.commit()
 
+    # Delete Google Calendar event if synced
+    if booking.google_event_id and current_user.google_calendar_sync_enabled and current_user.google_access_token:
+        try:
+            creds = get_credentials(current_user)
+            if creds:
+                delete_calendar_event(creds, booking.google_event_id,
+                                      current_user.google_calendar_id or "primary")
+        except Exception:
+            pass
+
     company = db.query(Company).filter(Company.id == current_user.company_id).first()
     if company:
         send_webhook(company, "booking.cancelled", {
@@ -933,6 +1011,19 @@ def available_slots(
         for b in existing_bookings
     ]
 
+    # Fetch Google Calendar busy events
+    if user.google_calendar_sync_enabled and user.google_access_token:
+        try:
+            creds = get_credentials(user)
+            if creds:
+                day_start = datetime.combine(target_date, datetime.min.time(), tzinfo=timezone.utc)
+                day_end = day_start + timedelta(days=1)
+                google_busy = fetch_busy_events(creds, day_start, day_end,
+                                                 user.google_calendar_id or "primary")
+                booked_ranges.extend(google_busy)
+        except Exception:
+            pass
+
     slots = []
     for av in availabilities:
         current = datetime.combine(
@@ -1004,58 +1095,36 @@ def create_booking(
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
 
-    # Find user(s) for booking
-    if FEATURES["round_robin"] or FEATURES["collective"]:
-        event_type = db.query(EventType).filter(
-            EventType.id == payload.event_type_id,
-            EventType.company_id == company.id,
-            EventType.is_active == True,
-        ).first()
-        if not event_type:
-            raise HTTPException(status_code=404, detail="Event type not found")
+    # Find event type
+    event_type = db.query(EventType).filter(
+        EventType.id == payload.event_type_id,
+        EventType.company_id == company.id,
+        EventType.is_active == True,
+    ).first()
+    if not event_type:
+        raise HTTPException(status_code=404, detail="Event type not found")
 
-        target_user = None
-        if event_type.assignment_type == "round_robin" and FEATURES["round_robin"]:
-            target_user = find_round_robin_user(db, company.id, event_type.id)
-            if not target_user:
-                raise HTTPException(status_code=400, detail="No available collaborators")
-        elif event_type.assignment_type == "collective" and FEATURES["collective"]:
-            # For collective, try the requested user but they must be available
-            target_user = db.query(User).filter(
-                User.email == user_email,
-                User.company_id == company.id,
-                User.is_active == True,
-            ).first()
-            if not target_user:
-                raise HTTPException(status_code=404, detail="User not found")
-            # Check all collaborators are free (simplified: just check at least 1 free)
-            all_members = db.query(User).filter(
-                User.company_id == company.id,
-                User.is_active == True,
-            ).all()
-            for member in all_members:
-                if member.id == target_user.id:
-                    continue
-                member_bookings = db.query(Booking).filter(
-                    Booking.user_id == member.id,
-                    Booking.status == "confirmed",
-                    Booking.start_time < payload.end_time,
-                    Booking.end_time > payload.start_time,
-                ).first()
-                if member_bookings:
-                    raise HTTPException(status_code=400, detail=f"{member.display_name or member.email} is not available at this time")
-        else:
-            target_user = db.query(User).filter(
-                User.email == user_email,
-                User.company_id == company.id,
-                User.is_active == True,
-            ).first()
-    else:
-        target_user = db.query(User).filter(
-            User.email == user_email,
+    # Determine target user(s) based on assignment type
+    target_user = user
+    if event_type.assignment_type == "round_robin" and FEATURES["round_robin"]:
+        target_user = find_round_robin_user(db, company.id, event_type.id)
+        if not target_user:
+            raise HTTPException(status_code=400, detail="No available collaborators")
+    elif event_type.assignment_type == "collective" and FEATURES["collective"]:
+        # Check all collaborators are free
+        all_members = db.query(User).filter(
             User.company_id == company.id,
             User.is_active == True,
-        ).first()
+        ).all()
+        for member in all_members:
+            member_bookings = db.query(Booking).filter(
+                Booking.user_id == member.id,
+                Booking.status == "confirmed",
+                Booking.start_time < payload.end_time,
+                Booking.end_time > payload.start_time,
+            ).first()
+            if member_bookings:
+                raise HTTPException(status_code=400, detail=f"{member.display_name or member.email} is not available at this time")
 
     if not target_user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -1129,5 +1198,25 @@ def create_booking(
         "collaborator_id": str(target_user.id),
         "collaborator_email": target_user.email,
     })
+
+    # Create Google Calendar event if synced
+    if target_user.google_calendar_sync_enabled and target_user.google_access_token:
+        try:
+            creds = get_credentials(target_user)
+            if creds:
+                summary = f"{event_type.title} — {booking.booker_name}"
+                description = f"Avec {booking.booker_name}\nEmail: {booking.booker_email}"
+                if booking.booker_phone:
+                    description += f"\nTéléphone: {booking.booker_phone}"
+                event_id = create_calendar_event(
+                    creds, summary, description,
+                    booking.start_time, booking.end_time,
+                    target_user.google_calendar_id or "primary",
+                )
+                if event_id:
+                    booking.google_event_id = event_id
+                    db.commit()
+        except Exception:
+            pass
 
     return booking

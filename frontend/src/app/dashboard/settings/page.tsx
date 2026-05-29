@@ -32,6 +32,8 @@ export default function SettingsPage() {
   const [reminderEmail, setReminderEmail] = useState(true);
   const [reminderMinutes, setReminderMinutes] = useState(10);
   const [maxBookingsPerDay, setMaxBookingsPerDay] = useState(0);
+  const [calendarConnected, setCalendarConnected] = useState(false);
+  const [calendarSyncing, setCalendarSyncing] = useState(false);
 
   const notify = (msg: string) => {
     setNotification(msg);
@@ -62,6 +64,37 @@ export default function SettingsPage() {
       setMaxBookingsPerDay(user.max_bookings_per_day);
     }
   }, [user]);
+
+  useEffect(() => {
+    fetch('/api/auth/google/status')
+      .then(r => r.json())
+      .then(data => {
+        setCalendarConnected(data.connected);
+        setCalendarSyncing(data.sync_enabled);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleConnectGoogle = async () => {
+    try {
+      const res = await fetch('/api/auth/google/authorize');
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+    } catch {
+      notify('Erreur lors de la connexion Google Calendar');
+    }
+  };
+
+  const handleDisconnectGoogle = async () => {
+    try {
+      await fetch('/api/auth/google/disconnect', { method: 'POST' });
+      setCalendarConnected(false);
+      setCalendarSyncing(false);
+      notify('Google Calendar déconnecté');
+    } catch {
+      notify('Erreur lors de la déconnexion');
+    }
+  };
 
   const handleCompanySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -200,6 +233,29 @@ export default function SettingsPage() {
           </>
         )}
       </form>
+
+      <div className="space-y-5 mb-12">
+        <h2 className="text-lg font-medium border-b border-neutral-200 pb-2">Calendrier</h2>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium">Google Calendar</p>
+            <p className="text-xs text-neutral-400 mt-0.5">
+              {calendarConnected
+                ? 'Connecté — les événements Google Calendar sont pris en compte comme occupés'
+                : 'Connectez votre Google Calendar pour bloquer les créneaux déjà occupés'}
+            </p>
+          </div>
+          {calendarConnected ? (
+            <button onClick={handleDisconnectGoogle} className="px-4 py-2 text-sm border border-neutral-200 rounded-sm hover:bg-neutral-100 transition-colors">
+              Déconnecter
+            </button>
+          ) : (
+            <button onClick={handleConnectGoogle} className="px-4 py-2 text-sm bg-neutral-900 text-white rounded-sm hover:bg-black transition-colors">
+              Connecter
+            </button>
+          )}
+        </div>
+      </div>
 
       <form onSubmit={handleProfileSubmit} className="space-y-5">
         <h2 className="text-lg font-medium border-b border-neutral-200 pb-2">Mon profil</h2>
