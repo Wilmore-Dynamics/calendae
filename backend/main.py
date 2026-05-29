@@ -9,6 +9,7 @@ import hashlib
 import time
 import secrets
 from typing import Optional
+from zoneinfo import ZoneInfo
 from email.message import EmailMessage
 from datetime import datetime, timezone, timedelta, date as date_type
 from urllib.request import Request, urlopen
@@ -218,6 +219,8 @@ def ensure_columns():
                     conn.execute(text(f"ALTER TABLE event_types ADD COLUMN {col} {ddl}"))
             if "custom_fields" not in cols:
                 conn.execute(text("ALTER TABLE event_types ADD COLUMN custom_fields TEXT"))
+            if "slot_interval" not in cols:
+                conn.execute(text("ALTER TABLE event_types ADD COLUMN slot_interval INTEGER"))
 
         # Add columns to existing events table
         if "events" in tables:
@@ -289,15 +292,35 @@ def send_invitation_email(company: Company, to_email: str, inviter_name: str):
     if not company.smtp_host or not company.smtp_user or not company.smtp_password:
         logger.warning("send_invitation_email: SMTP not configured for company %s", company.id)
         return
-    msg = EmailMessage()
-    msg["Subject"] = f"Invitation à rejoindre {company.name} sur Calendae"
-    msg["From"] = company.smtp_user
-    msg["To"] = to_email
-    msg.set_content(
+    subject = f"Invitation à rejoindre {company.name} sur Calendae"
+    text = (
         f"Bonjour,\n\n{inviter_name} vous invite à rejoindre {company.name} sur Calendae.\n\n"
         f"Créez votre compte sur http://localhost:3000/auth/register pour commencer.\n\n"
         f"– Calendae"
     )
+    html = f"""\
+<!DOCTYPE html>
+<html><body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f0eb;padding:40px 20px">
+<tr><td align="center">
+<table width="480" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:8px;overflow:hidden">
+<tr><td style="padding:40px 32px 24px;text-align:center">
+<h1 style="font-size:22px;font-weight:600;margin:0 0 8px;color:#1a1a1a">Calendae</h1>
+<p style="color:#6b6b6b;font-size:15px;margin:0 0 24px;line-height:1.5">
+  {inviter_name} vous invite à rejoindre <strong>{company.name}</strong>.
+</p>
+<a href="http://localhost:3000/auth/register" style="display:inline-block;background:#1a1a1a;color:#fff;text-decoration:none;padding:12px 32px;border-radius:6px;font-size:14px;font-weight:500">
+  Créer mon compte
+</a>
+<p style="color:#999;font-size:12px;margin-top:24px">– Calendae</p>
+</td></tr></table>
+</td></tr></table></body></html>"""
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = company.smtp_user
+    msg["To"] = to_email
+    msg.set_content(text)
+    msg.add_alternative(html, subtype="html")
     try:
         _send_smtp(company, msg)
         logger.info("Invitation email sent to %s via %s", to_email, company.smtp_host)
@@ -310,23 +333,49 @@ def send_booking_confirmation(company: Company, target_user: User, booking: Book
         logger.warning("send_booking_confirmation: SMTP not configured for company %s", company.id)
         return
     manage_url = f"{base_url}/booked/{booking.manage_token}"
-    msg = EmailMessage()
-    msg["Subject"] = f"Confirmation de votre rendez-vous — {event_type.title}"
-    msg["From"] = company.smtp_user
-    msg["To"] = booking.booker_email
-    content = (
+    date_str = booking.start_time.strftime('%A %d %B %Y')
+    time_str = f"{booking.start_time.strftime('%H:%M')} — {booking.end_time.strftime('%H:%M')}"
+    host_name = target_user.display_name or target_user.email
+    subject = f"Confirmation de votre rendez-vous — {event_type.title}"
+    text = (
         f"Bonjour {booking.booker_name},\n\n"
-        f"Votre rendez-vous '{event_type.title}' avec {target_user.display_name or target_user.email} est confirmé.\n\n"
-        f"Date : {booking.start_time.strftime('%A %d %B %Y')}\n"
-        f"Horaire : {booking.start_time.strftime('%H:%M')} — {booking.end_time.strftime('%H:%M')}\n"
+        f"Votre rendez-vous '{event_type.title}' avec {host_name} est confirmé.\n\n"
+        f"Date : {date_str}\n"
+        f"Horaire : {time_str}\n"
     )
     if booking.video_conference_url:
-        content += f"\nLien visioconférence : {booking.video_conference_url}\n"
-    content += (
+        text += f"\nLien visioconférence : {booking.video_conference_url}\n"
+    text += (
         f"\nPour gérer ce rendez-vous (annulation, report) :\n{manage_url}\n\n"
         f"– {company.name}"
     )
-    msg.set_content(content)
+    html = f"""\
+<!DOCTYPE html>
+<html><body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f0eb;padding:40px 20px">
+<tr><td align="center">
+<table width="480" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:8px;overflow:hidden">
+<tr><td style="padding:40px 32px 24px;text-align:center">
+<div style="width:48px;height:48px;border-radius:50%;background:#d4edda;display:inline-flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:16px">✓</div>
+<h1 style="font-size:20px;font-weight:600;margin:0 0 4px;color:#1a1a1a">Rendez-vous confirmé</h1>
+<p style="color:#6b6b6b;font-size:14px;margin:0 0 4px">{event_type.title}</p>
+<p style="color:#6b6b6b;font-size:14px;margin:0 0 16px">avec {host_name}</p>
+<table cellpadding="0" cellspacing="0" style="background:#f9f9f9;border-radius:6px;margin:0 auto 24px">
+<tr><td style="padding:12px 24px;text-align:center">
+<p style="font-size:15px;font-weight:500;margin:0 0 2px;color:#1a1a1a">{date_str}</p>
+<p style="font-size:13px;color:#6b6b6b;margin:0">{time_str}</p>
+</td></tr></table>
+{f'<a href="{booking.video_conference_url}" style="display:inline-block;background:#1a1a1a;color:#fff;text-decoration:none;padding:12px 28px;border-radius:6px;font-size:14px;font-weight:500;margin-bottom:16px">Rejoindre la visioconférence</a>' if booking.video_conference_url else ''}
+<p style="margin:0 0 4px"><a href="{manage_url}" style="color:#6b6b6b;font-size:13px">Gérer ce rendez-vous (annulation, report)</a></p>
+<p style="color:#999;font-size:12px;margin-top:20px">– {company.name}</p>
+</td></tr></table>
+</td></tr></table></body></html>"""
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = company.smtp_user
+    msg["To"] = booking.booker_email
+    msg.set_content(text)
+    msg.add_alternative(html, subtype="html")
     try:
         _send_smtp(company, msg)
         logger.info("Booking confirmation email sent to %s via %s", booking.booker_email, company.smtp_host)
@@ -755,6 +804,7 @@ def create_event_type(
         assignment_type=payload.assignment_type if (FEATURES["round_robin"] or FEATURES["collective"]) else "single",
         price_amount=payload.price_amount if FEATURES["payments"] else None,
         price_currency=payload.price_currency if FEATURES["payments"] else "eur",
+        slot_interval=payload.slot_interval,
         custom_fields=json.dumps(payload.custom_fields) if payload.custom_fields else None,
     )
     db.add(et)
@@ -799,6 +849,7 @@ def update_event_type(
     et.assignment_type = payload.assignment_type if (FEATURES["round_robin"] or FEATURES["collective"]) else "single"
     et.price_amount = payload.price_amount if FEATURES["payments"] else None
     et.price_currency = payload.price_currency if FEATURES["payments"] else "eur"
+    et.slot_interval = payload.slot_interval
     et.custom_fields = json.dumps(payload.custom_fields) if payload.custom_fields else None
     db.commit()
     db.refresh(et)
@@ -1062,7 +1113,8 @@ def public_profile(
 def available_slots(
     slug: str,
     date: str = Query(...),
-    event_type_id: str | None = Query(None),
+    event_type_id: Optional[str] = Query(None),
+    timezone: str = Query("UTC"),
     db: Session = Depends(get_db),
 ):
     user = db.query(User).filter(
@@ -1130,13 +1182,14 @@ def available_slots(
             pass
 
     slots = []
+    user_tz = ZoneInfo(user.timezone)
     for av in availabilities:
         current = datetime.combine(
-            target_date, av.start_time, tzinfo=timezone.utc
-        )
+            target_date, av.start_time
+        ).replace(tzinfo=user_tz).astimezone(timezone.utc)
         end_bound = datetime.combine(
-            target_date, av.end_time, tzinfo=timezone.utc
-        )
+            target_date, av.end_time
+        ).replace(tzinfo=user_tz).astimezone(timezone.utc)
 
         event_types_q = db.query(EventType).filter(
             EventType.company_id == company.id,
@@ -1148,10 +1201,10 @@ def available_slots(
         if not event_types_list:
             continue
         min_duration = min(et.duration_minutes for et in event_types_list)
-
-        step = min_duration
-        while current + timedelta(minutes=step) <= end_bound:
-            slot_end = current + timedelta(minutes=step)
+        intervals = [et.slot_interval for et in event_types_list if et.slot_interval]
+        step = min(intervals) if intervals else min_duration
+        while current + timedelta(minutes=min_duration) <= end_bound:
+            slot_end = current + timedelta(minutes=min_duration)
 
             # Apply buffer times
             slot_start_with_buffer = current

@@ -92,6 +92,7 @@ class EventType(Base):
     assignment_type = Column(String, default="single")
     price_amount = Column(Integer, nullable=True)
     price_currency = Column(String, default="eur")
+    slot_interval = Column(Integer, nullable=True)
     custom_fields = Column(Text, nullable=True)
 
     company = relationship("Company", back_populates="event_types")

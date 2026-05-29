@@ -248,6 +248,7 @@ export interface EventType {
   assignment_type: string;
   price_amount: number | null;
   price_currency: string;
+  slot_interval: number | null;
   custom_fields?: FieldDef[];
 }
 
@@ -271,6 +272,7 @@ export async function createEventType(data: {
   assignment_type?: string;
   price_amount?: number;
   price_currency?: string;
+  slot_interval?: number;
   custom_fields?: FieldDef[];
 }): Promise<EventType> {
   return request<EventType>('/api/event-types', {
@@ -295,6 +297,7 @@ export async function updateEventType(id: string, data: {
   assignment_type?: string;
   price_amount?: number;
   price_currency?: string;
+  slot_interval?: number;
   custom_fields?: FieldDef[];
 }): Promise<EventType> {
   return request<EventType>(`/api/event-types/${id}`, {
@@ -389,8 +392,10 @@ export interface AvailableSlots {
   slots: string[];
 }
 
-export async function getAvailableSlots(slug: string, date: string): Promise<AvailableSlots> {
-  return request<AvailableSlots>(`/api/${slug}/slots?date=${date}`);
+export async function getAvailableSlots(slug: string, date: string, timezone?: string): Promise<AvailableSlots> {
+  const params = new URLSearchParams({ date });
+  if (timezone) params.set('timezone', timezone);
+  return request<AvailableSlots>(`/api/${slug}/slots?${params}`);
 }
 
 export async function createBooking(slug: string, data: {

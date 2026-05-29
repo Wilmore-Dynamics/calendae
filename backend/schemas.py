@@ -114,6 +114,7 @@ class EventTypeCreate(BaseModel):
     assignment_type: str = "single"
     price_amount: Optional[int] = None
     price_currency: str = "eur"
+    slot_interval: Optional[int] = None
     custom_fields: Optional[list[dict]] = None
 
 class EventTypeResponse(BaseModel):
@@ -133,6 +134,7 @@ class EventTypeResponse(BaseModel):
     assignment_type: str = "single"
     price_amount: Optional[int] = None
     price_currency: str = "eur"
+    slot_interval: Optional[int] = None
     custom_fields: Optional[list[dict]] = None
 
     model_config = ConfigDict(from_attributes=True)

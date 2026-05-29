@@ -49,11 +49,21 @@ export default function BookingManagePage({
   if (error) return <div className="max-w-lg mx-auto px-6 py-20 text-center text-neutral-500">{error}</div>;
   if (!booking) return null;
 
-  const formatDate = (iso: string) =>
-    new Date(iso).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const formatDate = (iso: string) => {
+    try {
+      return new Date(iso).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+    } catch {
+      return new Date(iso).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    }
+  };
 
-  const formatTime = (iso: string) =>
-    new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const formatTime = (iso: string) => {
+    try {
+      return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+    } catch {
+      return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    }
+  };
 
   if (cancelled || booking.status === 'cancelled') {
     return (

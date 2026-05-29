@@ -13,6 +13,7 @@ export default function EventTypesPage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [duration, setDuration] = useState(30);
+  const [slotInterval, setSlotInterval] = useState(0);
   const [color, setColor] = useState(COLORS[0]);
   const [bufferBefore, setBufferBefore] = useState(0);
   const [bufferAfter, setBufferAfter] = useState(0);
@@ -40,6 +41,7 @@ export default function EventTypesPage() {
     setTitle('');
     setDescription('');
     setDuration(30);
+    setSlotInterval(0);
     setColor(COLORS[0]);
     setBufferBefore(0);
     setBufferAfter(0);
@@ -57,6 +59,7 @@ export default function EventTypesPage() {
     setTitle(t.title);
     setDescription(t.description || '');
     setDuration(t.duration_minutes);
+    setSlotInterval(t.slot_interval || 0);
     setColor(t.color || COLORS[0]);
     setBufferBefore(t.buffer_before);
     setBufferAfter(t.buffer_after);
@@ -86,6 +89,7 @@ export default function EventTypesPage() {
         assignment_type: assignmentType,
         price_amount: features.payments ? priceAmount : undefined,
         price_currency: priceCurrency,
+        slot_interval: slotInterval > 0 ? slotInterval : undefined,
         custom_fields: customFields.length > 0 ? customFields : undefined,
       };
       if (editingId) {
@@ -137,6 +141,10 @@ export default function EventTypesPage() {
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-neutral-500">Durée (minutes)</label>
             <input type="number" value={duration} onChange={(e) => setDuration(Number(e.target.value))} min={5} step={5} className="border border-neutral-200 px-4 py-2 rounded-sm focus:border-neutral-400 focus:ring-0 transition-colors w-32" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm text-neutral-500">Intervalle des créneaux (0 = comme la durée)</label>
+            <input type="number" value={slotInterval} onChange={(e) => setSlotInterval(Number(e.target.value))} min={0} step={5} className="border border-neutral-200 px-4 py-2 rounded-sm focus:border-neutral-400 focus:ring-0 transition-colors w-32" />
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-neutral-500">Couleur</label>
@@ -254,6 +262,7 @@ export default function EventTypesPage() {
         {types.map((t) => {
           const tags: string[] = [];
           if (t.buffer_before || t.buffer_after) tags.push(`Tampon ${t.buffer_before}/${t.buffer_after}min`);
+          if (t.slot_interval) tags.push(`Intervalle ${t.slot_interval}min`);
           if (t.min_notice_minutes) tags.push(`${t.min_notice_minutes}min prévenance`);
           if (t.max_bookings_per_day) tags.push(`Max ${t.max_bookings_per_day}/jour`);
           if (t.assignment_type === 'round_robin') tags.push('Round-robin');

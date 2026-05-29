@@ -11,6 +11,26 @@ function todayString(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+function getTimezone(): string {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return 'UTC'; }
+}
+
+function formatTime(iso: string): string {
+  try {
+    return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: getTimezone() });
+  } catch {
+    return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  }
+}
+
+function formatDate(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: getTimezone() });
+  } catch {
+    return new Date(iso).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  }
+}
+
 export default function PublicBookingPage({
   params,
 }: {
@@ -52,7 +72,7 @@ export default function PublicBookingPage({
     if (!selectedType || !selectedDate) return;
     setLoadingSlots(true);
     setSelectedSlot(null);
-    api.getAvailableSlots(slug, selectedDate)
+    api.getAvailableSlots(slug, selectedDate, getTimezone())
       .then((data) => setSlots(data.slots))
       .catch(() => setSlots([]))
       .finally(() => setLoadingSlots(false));
@@ -111,13 +131,11 @@ export default function PublicBookingPage({
           </div>
           <h2 className="text-xl font-medium mb-2">Rendez-vous confirmé</h2>
           <p className="text-neutral-500 mb-4">
-            {new Date(booking.start_time).toLocaleDateString('fr-FR', {
-              weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-            })}
+            {formatDate(booking.start_time)}
           </p>
           <p className="text-sm text-neutral-400 mb-6">
-            {new Date(booking.start_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} —{' '}
-            {new Date(booking.end_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+            {formatTime(booking.start_time)} —{' '}
+            {formatTime(booking.end_time)}
           </p>
           {booking.video_conference_url && (
             <a href={booking.video_conference_url} target="_blank" className="inline-block mb-6 px-6 py-2.5 text-sm bg-neutral-900 text-white rounded-sm hover:bg-black transition-colors">
@@ -193,7 +211,7 @@ export default function PublicBookingPage({
                 ) : (
                   <div className="grid grid-cols-3 gap-2">
                     {slots.map((slot) => {
-                      const time = new Date(slot).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+                      const time = formatTime(slot);
                       return (
                         <button
                           key={slot}
