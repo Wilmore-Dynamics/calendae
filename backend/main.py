@@ -2,6 +2,7 @@ import os
 import uuid
 import logging
 import smtplib
+import ssl
 import json
 import hmac
 import hashlib
@@ -42,6 +43,19 @@ from google_calendar import (
 
 
 logger = logging.getLogger(__name__)
+
+
+def _send_smtp(company: Company, msg: EmailMessage) -> None:
+    port = company.smtp_port or 587
+    if port == 465:
+        with smtplib.SMTP_SSL(company.smtp_host, port, timeout=15, context=ssl.create_default_context()) as server:
+            server.login(company.smtp_user, company.smtp_password)
+            server.send_message(msg)
+    else:
+        with smtplib.SMTP(company.smtp_host, port, timeout=15) as server:
+            server.starttls(context=ssl.create_default_context())
+            server.login(company.smtp_user, company.smtp_password)
+            server.send_message(msg)
 
 
 def generate_slug(email: str, db: Session) -> str:
@@ -284,10 +298,7 @@ def send_invitation_email(company: Company, to_email: str, inviter_name: str):
         f"– Calendae"
     )
     try:
-        with smtplib.SMTP(company.smtp_host, company.smtp_port or 587, timeout=15) as server:
-            server.starttls()
-            server.login(company.smtp_user, company.smtp_password)
-            server.send_message(msg)
+        _send_smtp(company, msg)
         logger.info("Invitation email sent to %s via %s", to_email, company.smtp_host)
     except Exception as e:
         logger.error("Failed to send invitation email to %s: %s", to_email, e)
@@ -316,10 +327,7 @@ def send_booking_confirmation(company: Company, target_user: User, booking: Book
     )
     msg.set_content(content)
     try:
-        with smtplib.SMTP(company.smtp_host, company.smtp_port or 587, timeout=15) as server:
-            server.starttls()
-            server.login(company.smtp_user, company.smtp_password)
-            server.send_message(msg)
+        _send_smtp(company, msg)
         logger.info("Booking confirmation email sent to %s via %s", booking.booker_email, company.smtp_host)
     except Exception as e:
         logger.error("Failed to send booking confirmation to %s: %s", booking.booker_email, e)
