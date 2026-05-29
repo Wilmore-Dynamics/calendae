@@ -173,6 +173,8 @@ class BookingResponse(BaseModel):
     end_time: datetime
     status: str
     created_at: datetime
+    manage_token: Optional[str] = None
+    event_type_title: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

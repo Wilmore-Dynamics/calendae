@@ -113,10 +113,18 @@ export default function PublicBookingPage({
               weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
             })}
           </p>
-          <p className="text-sm text-neutral-400">
+          <p className="text-sm text-neutral-400 mb-6">
             {new Date(booking.start_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} —{' '}
             {new Date(booking.end_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
           </p>
+          {booking.manage_token && (
+            <a
+              href={`/booked/${booking.manage_token}`}
+              className="text-sm text-neutral-900 underline hover:text-neutral-600"
+            >
+              Gérer ce rendez-vous (annulation, report)
+            </a>
+          )}
         </div>
       ) : (
         <>

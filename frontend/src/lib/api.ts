@@ -337,6 +337,8 @@ export interface Booking {
   end_time: string;
   status: string;
   created_at: string;
+  manage_token?: string;
+  event_type_title?: string;
 }
 
 export async function listMyBookings(): Promise<Booking[]> {

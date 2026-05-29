@@ -5,6 +5,7 @@ import json
 import hmac
 import hashlib
 import time
+import secrets
 from email.message import EmailMessage
 from datetime import datetime, timezone, timedelta, date as date_type
 from urllib.request import Request, urlopen
@@ -210,6 +211,8 @@ def ensure_columns():
             cols = {c["name"] for c in inspector.get_columns("bookings")}
             if "google_event_id" not in cols:
                 conn.execute(text("ALTER TABLE bookings ADD COLUMN google_event_id VARCHAR"))
+            if "manage_token" not in cols:
+                conn.execute(text("ALTER TABLE bookings ADD COLUMN manage_token VARCHAR UNIQUE"))
 
         conn.commit()
 
@@ -1182,6 +1185,7 @@ def create_booking(
         booker_phone=payload.booker_phone,
         start_time=payload.start_time,
         end_time=payload.end_time,
+        manage_token=secrets.token_urlsafe(32),
     )
     db.add(booking)
     db.commit()
@@ -1220,3 +1224,105 @@ def create_booking(
             pass
 
     return booking
+
+
+# ── Public Booking Management (via token) ──
+
+@app.get("/api/bookings/manage/{token}")
+def get_booking_by_token(token: str, db: Session = Depends(get_db)):
+    booking = db.query(Booking).filter(Booking.manage_token == token).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Réservation introuvable")
+    event_type = db.query(EventType).filter(EventType.id == booking.event_type_id).first()
+    return BookingResponse(
+        **{c.name: getattr(booking, c.name) for c in booking.__table__.columns},
+        event_type_title=event_type.title if event_type else None,
+    )
+
+
+@app.post("/api/bookings/manage/{token}/cancel")
+def cancel_booking_by_token(token: str, db: Session = Depends(get_db)):
+    booking = db.query(Booking).filter(Booking.manage_token == token).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Réservation introuvable")
+    if booking.status != "confirmed":
+        raise HTTPException(status_code=400, detail="Cette réservation est déjà annulée")
+    booking.status = "cancelled"
+    db.commit()
+
+    user = db.query(User).filter(User.id == booking.user_id).first()
+    if booking.google_event_id and user and user.google_calendar_sync_enabled:
+        try:
+            creds = get_credentials(user)
+            if creds:
+                delete_calendar_event(creds, booking.google_event_id, user.google_calendar_id or "primary")
+        except Exception:
+            pass
+
+    company = db.query(Company).filter(Company.id == user.company_id).first() if user else None
+    if company:
+        send_webhook(company, "booking.cancelled", {
+            "booking_id": str(booking.id),
+            "event_type_id": str(booking.event_type_id),
+            "booker_email": booking.booker_email,
+        })
+
+    event_type = db.query(EventType).filter(EventType.id == booking.event_type_id).first()
+    return BookingResponse(
+        **{c.name: getattr(booking, c.name) for c in booking.__table__.columns},
+        event_type_title=event_type.title if event_type else None,
+    )
+
+
+@app.post("/api/bookings/manage/{token}/reschedule", response_model=BookingResponse)
+def reschedule_booking_by_token(
+    token: str,
+    payload: PublicBookingRequest,
+    db: Session = Depends(get_db),
+):
+    booking = db.query(Booking).filter(Booking.manage_token == token).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Réservation introuvable")
+    if booking.status != "confirmed":
+        raise HTTPException(status_code=400, detail="Impossible de reporter une réservation annulée")
+
+    user = db.query(User).filter(User.id == booking.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+
+    event_type = db.query(EventType).filter(
+        EventType.id == payload.event_type_id,
+        EventType.is_active == True,
+    ).first()
+    if not event_type:
+        raise HTTPException(status_code=404, detail="Type d'événement introuvable")
+
+    conflicting = db.query(Booking).filter(
+        Booking.user_id == user.id,
+        Booking.status == "confirmed",
+        Booking.id != booking.id,
+        Booking.start_time < payload.end_time,
+        Booking.end_time > payload.start_time,
+    ).all()
+    if conflicting:
+        raise HTTPException(status_code=409, detail="Ce créneau est déjà pris")
+
+    booking.start_time = payload.start_time
+    booking.end_time = payload.end_time
+    db.commit()
+
+    company = db.query(Company).filter(Company.id == user.company_id).first() if user else None
+    if company:
+        send_webhook(company, "booking.rescheduled", {
+            "booking_id": str(booking.id),
+            "event_type_id": str(event_type.id),
+            "booker_email": booking.booker_email,
+            "old_start": booking.start_time.isoformat(),
+            "new_start": payload.start_time.isoformat(),
+        })
+
+    event_type = db.query(EventType).filter(EventType.id == booking.event_type_id).first()
+    return BookingResponse(
+        **{c.name: getattr(booking, c.name) for c in booking.__table__.columns},
+        event_type_title=event_type.title if event_type else None,
+    )
