@@ -525,6 +525,9 @@ def register(payload: UserCreate, db: Session = Depends(get_db)):
             refresh_token=refresh_token,
             user=UserResponse.model_validate(existing),
         )
+    admin_exists = db.query(User).filter(User.role == "admin").first()
+    if admin_exists:
+        raise HTTPException(status_code=403, detail="Cette plateforme est privée. Vous devez être invité pour créer un compte.")
     user = User(
         email=payload.email,
         slug=generate_slug(payload.email, db),
