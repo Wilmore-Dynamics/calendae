@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
@@ -11,8 +11,18 @@ export default function RegisterPage() {
   const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const { register } = useAuth();
+  const { register, user, isLoading } = useAuth();
   const router = useRouter();
+
+  useEffect(() => {
+    if (!isLoading && user) {
+      if (user.company_id) {
+        router.push('/dashboard');
+      } else {
+        router.push('/setup');
+      }
+    }
+  }, [user, isLoading, router]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -20,7 +30,6 @@ export default function RegisterPage() {
     setSubmitting(true);
     try {
       await register(email, password, displayName || undefined);
-      router.push('/');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Erreur d'inscription");
     } finally {

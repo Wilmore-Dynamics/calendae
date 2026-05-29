@@ -33,7 +33,7 @@ from schemas import (
 )
 from auth import (
     hash_password, verify_password, create_access_token,
-    create_refresh_token, decode_token, get_current_user,
+    create_refresh_token, decode_token, get_current_user, get_current_user_optional,
 )
 from config import FEATURES, STRIPE_WEBHOOK_SECRET
 from google_calendar import (
@@ -398,16 +398,37 @@ def run_setup(
     company_name: str = Query(...),
     company_slug: str = Query(...),
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ):
+    existing_slug = db.query(Company).filter(Company.slug == company_slug).first()
+    if existing_slug:
+        raise HTTPException(status_code=409, detail="Slug already taken")
+
+    if current_user:
+        if current_user.company_id:
+            raise HTTPException(status_code=400, detail="You already belong to a company")
+        company = Company(name=company_name, slug=company_slug)
+        db.add(company)
+        db.commit()
+        db.refresh(company)
+        current_user.company_id = company.id
+        current_user.role = "admin"
+        db.commit()
+        db.refresh(current_user)
+        access_token = create_access_token({"sub": str(current_user.id)})
+        refresh_token = create_refresh_token({"sub": str(current_user.id)})
+        return TokenResponse(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            user=UserResponse.model_validate(current_user),
+        )
+
     existing_admin = db.query(User).filter(User.role == "admin").first()
     if existing_admin:
         raise HTTPException(status_code=400, detail="Setup already completed")
     existing_user = db.query(User).filter(User.email == payload.email).first()
     if existing_user:
         raise HTTPException(status_code=409, detail="Email already registered")
-    existing_slug = db.query(Company).filter(Company.slug == company_slug).first()
-    if existing_slug:
-        raise HTTPException(status_code=409, detail="Slug already taken")
 
     company = Company(name=company_name, slug=company_slug)
     db.add(company)
@@ -440,7 +461,20 @@ def run_setup(
 def register(payload: UserCreate, db: Session = Depends(get_db)):
     existing = db.query(User).filter(User.email == payload.email).first()
     if existing:
-        raise HTTPException(status_code=409, detail="Email already registered")
+        if existing.password_hash != "__INVITED__":
+            raise HTTPException(status_code=409, detail="Email already registered")
+        existing.password_hash = hash_password(payload.password)
+        if payload.display_name:
+            existing.display_name = payload.display_name
+        db.commit()
+        db.refresh(existing)
+        access_token = create_access_token({"sub": str(existing.id)})
+        refresh_token = create_refresh_token({"sub": str(existing.id)})
+        return TokenResponse(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            user=UserResponse.model_validate(existing),
+        )
     user = User(
         email=payload.email,
         slug=generate_slug(payload.email, db),
@@ -623,13 +657,24 @@ def invite_member(
     company = get_company_or_404(db, current_user.company_id)
     existing = db.query(User).filter(User.email == payload.email).first()
     if existing:
-        if existing.company_id:
-            raise HTTPException(status_code=400, detail="User already in a company")
-        existing.company_id = company.id
-        existing.role = payload.role
-        db.commit()
+        if existing.password_hash != "__INVITED__":
+            if existing.company_id:
+                raise HTTPException(status_code=400, detail="User already in a company")
+            existing.company_id = company.id
+            existing.role = payload.role
+            db.commit()
         send_invitation_email(company, payload.email, current_user.display_name or current_user.email)
         return
+    user = User(
+        email=payload.email,
+        slug=generate_slug(payload.email, db),
+        password_hash="__INVITED__",
+        display_name=payload.email.split("@")[0],
+        company_id=company.id,
+        role=payload.role,
+    )
+    db.add(user)
+    db.commit()
     send_invitation_email(company, payload.email, current_user.display_name or current_user.email)
 
 @app.get("/api/companies/members", response_model=list[MemberResponse])

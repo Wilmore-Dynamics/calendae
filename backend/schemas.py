@@ -7,8 +7,8 @@ from typing import Optional
 # ── Auth ──
 
 class UserCreate(BaseModel):
-    email: str
-    password: str
+    email: str = ""
+    password: str = ""
     display_name: Optional[str] = None
 
 class UserLogin(BaseModel):

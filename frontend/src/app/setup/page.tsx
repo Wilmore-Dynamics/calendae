@@ -7,6 +7,7 @@ import * as api from '@/lib/api';
 
 export default function SetupPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const { login: authLogin } = useAuth();
   const [checking, setChecking] = useState(true);
   const [setupRequired, setSetupRequired] = useState(false);
@@ -48,21 +49,32 @@ export default function SetupPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!companyName || !companySlug || !email || !password) return;
+    if (!companyName || !companySlug) return;
+    if (!user && (!email || !password)) return;
 
     setSubmitting(true);
     setError(null);
 
     const params = new URLSearchParams({ company_name: companyName, company_slug: companySlug });
     try {
+      const token = localStorage.getItem('access_token');
+      const isAuthed = !!user;
+      const body: Record<string, string | undefined> = {
+        email: isAuthed ? '' : email,
+        password: isAuthed ? '' : password,
+        display_name: displayName || undefined,
+      };
+      if (isAuthed) {
+        delete body.email;
+        delete body.password;
+      }
       const res = await fetch(`/api/setup?${params}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          password,
-          display_name: displayName || undefined,
-        }),
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) {
@@ -73,8 +85,12 @@ export default function SetupPage() {
       const data: api.TokenResponse = await res.json();
       localStorage.setItem('access_token', data.access_token);
       localStorage.setItem('refresh_token', data.refresh_token);
-      await authLogin(email, password);
-      router.push('/dashboard');
+      if (user) {
+        window.location.href = '/dashboard';
+      } else {
+        await authLogin(email, password);
+        router.push('/dashboard');
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -129,40 +145,47 @@ export default function SetupPage() {
 
           <hr className="border-neutral-100" />
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm text-neutral-500">Votre email (admin)</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="border border-neutral-200 px-4 py-2.5 rounded-sm focus:border-neutral-400 focus:ring-0 transition-colors"
-              placeholder="admin@exemple.com"
-              required
-            />
-          </div>
+          {!user && (<>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm text-neutral-500">Votre email (admin)</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="border border-neutral-200 px-4 py-2.5 rounded-sm focus:border-neutral-400 focus:ring-0 transition-colors"
+                placeholder="admin@exemple.com"
+                required
+              />
+            </div>
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm text-neutral-500">Mot de passe</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="border border-neutral-200 px-4 py-2.5 rounded-sm focus:border-neutral-400 focus:ring-0 transition-colors"
-              placeholder="••••••••"
-              required
-              minLength={6}
-            />
-          </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm text-neutral-500">Mot de passe</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="border border-neutral-200 px-4 py-2.5 rounded-sm focus:border-neutral-400 focus:ring-0 transition-colors"
+                placeholder="••••••••"
+                required
+                minLength={6}
+              />
+            </div>
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm text-neutral-500">Votre nom (optionnel)</label>
-            <input
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              className="border border-neutral-200 px-4 py-2.5 rounded-sm focus:border-neutral-400 focus:ring-0 transition-colors"
-              placeholder="Jean Dupont"
-            />
-          </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm text-neutral-500">Votre nom (optionnel)</label>
+              <input
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                className="border border-neutral-200 px-4 py-2.5 rounded-sm focus:border-neutral-400 focus:ring-0 transition-colors"
+                placeholder="Jean Dupont"
+              />
+            </div>
+          </>)}
+          {user && (
+            <p className="text-sm text-neutral-500 text-center py-2">
+              Connecté en tant que <span className="font-medium">{user.email}</span>
+            </p>
+          )}
 
           {error && (
             <p className="text-sm text-red-500 bg-red-50 border border-red-200 rounded-sm px-4 py-2">{error}</p>
@@ -173,7 +196,7 @@ export default function SetupPage() {
             disabled={submitting}
             className="w-full bg-neutral-900 text-white py-3 rounded-sm font-medium hover:bg-black transition-colors disabled:opacity-50"
           >
-            {submitting ? 'Configuration...' : 'Créer mon espace'}
+            {submitting ? 'Configuration...' : user ? 'Créer mon entreprise' : 'Créer mon espace'}
           </button>
         </form>
       </div>
