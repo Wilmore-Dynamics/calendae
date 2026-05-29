@@ -81,6 +81,11 @@ export default function BookingManagePage({
         <p className="text-sm text-neutral-400 mt-1">
           {formatTime(booking.start_time)} — {formatTime(booking.end_time)}
         </p>
+        {booking.video_conference_url && (
+          <a href={booking.video_conference_url} target="_blank" className="mt-4 inline-block px-6 py-2.5 text-sm bg-neutral-900 text-white rounded-sm hover:bg-black transition-colors">
+            Rejoindre la visioconférence
+          </a>
+        )}
         <div className="mt-6 text-sm text-neutral-400 space-y-1">
           <p>{booking.booker_name}</p>
           <p>{booking.booker_email}</p>

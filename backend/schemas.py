@@ -174,6 +174,7 @@ class BookingResponse(BaseModel):
     status: str
     created_at: datetime
     manage_token: Optional[str] = None
+    video_conference_url: Optional[str] = None
     event_type_title: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -218,3 +219,4 @@ class FeaturesResponse(BaseModel):
     webhooks: bool = False
     payments: bool = False
     timezone_detection: bool = True
+    video_conferencing: bool = True

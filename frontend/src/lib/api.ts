@@ -338,6 +338,7 @@ export interface Booking {
   status: string;
   created_at: string;
   manage_token?: string;
+  video_conference_url?: string;
   event_type_title?: string;
 }
 

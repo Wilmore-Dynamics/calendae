@@ -117,6 +117,11 @@ export default function PublicBookingPage({
             {new Date(booking.start_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} —{' '}
             {new Date(booking.end_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
           </p>
+          {booking.video_conference_url && (
+            <a href={booking.video_conference_url} target="_blank" className="inline-block mb-6 px-6 py-2.5 text-sm bg-neutral-900 text-white rounded-sm hover:bg-black transition-colors">
+              Rejoindre la visioconférence
+            </a>
+          )}
           {booking.manage_token && (
             <a
               href={`/booked/${booking.manage_token}`}

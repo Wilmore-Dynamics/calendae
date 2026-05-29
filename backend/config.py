@@ -9,6 +9,7 @@ FEATURES = {
     "webhooks": os.getenv("FEATURE_WEBHOOKS", "false").lower() == "true",
     "payments": os.getenv("FEATURE_PAYMENTS", "false").lower() == "true",
     "timezone_detection": os.getenv("FEATURE_TIMEZONE_DETECTION", "true").lower() == "true",
+    "video_conferencing": os.getenv("FEATURE_VIDEO_CONFERENCING", "true").lower() == "true",
 }
 
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")

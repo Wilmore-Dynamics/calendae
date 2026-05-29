@@ -213,6 +213,8 @@ def ensure_columns():
                 conn.execute(text("ALTER TABLE bookings ADD COLUMN google_event_id VARCHAR"))
             if "manage_token" not in cols:
                 conn.execute(text("ALTER TABLE bookings ADD COLUMN manage_token VARCHAR UNIQUE"))
+            if "video_conference_url" not in cols:
+                conn.execute(text("ALTER TABLE bookings ADD COLUMN video_conference_url VARCHAR"))
 
         conn.commit()
 
@@ -279,6 +281,37 @@ def send_invitation_email(company: Company, to_email: str, inviter_name: str):
             server.send_message(msg)
     except Exception:
         pass
+
+
+def send_booking_confirmation(company: Company, target_user: User, booking: Booking, event_type: EventType, base_url: str = ""):
+    if not company.smtp_host or not company.smtp_user or not company.smtp_password:
+        return
+    manage_url = f"{base_url}/booked/{booking.manage_token}"
+    msg = EmailMessage()
+    msg["Subject"] = f"Confirmation de votre rendez-vous — {event_type.title}"
+    msg["From"] = company.smtp_user
+    msg["To"] = booking.booker_email
+    content = (
+        f"Bonjour {booking.booker_name},\n\n"
+        f"Votre rendez-vous '{event_type.title}' avec {target_user.display_name or target_user.email} est confirmé.\n\n"
+        f"Date : {booking.start_time.strftime('%A %d %B %Y')}\n"
+        f"Horaire : {booking.start_time.strftime('%H:%M')} — {booking.end_time.strftime('%H:%M')}\n"
+    )
+    if booking.video_conference_url:
+        content += f"\nLien visioconférence : {booking.video_conference_url}\n"
+    content += (
+        f"\nPour gérer ce rendez-vous (annulation, report) :\n{manage_url}\n\n"
+        f"– {company.name}"
+    )
+    msg.set_content(content)
+    try:
+        with smtplib.SMTP(company.smtp_host, company.smtp_port or 587) as server:
+            server.starttls()
+            server.login(company.smtp_user, company.smtp_password)
+            server.send_message(msg)
+    except Exception:
+        pass
+
 
 def send_webhook(company: Company, event: str, payload: dict):
     if not company.webhook_url or not FEATURES["webhooks"]:
@@ -1177,6 +1210,10 @@ def create_booking(
     if existing_bookings:
         raise HTTPException(status_code=409, detail="This time slot overlaps with an existing booking")
 
+    video_conf_url = None
+    if FEATURES["video_conferencing"]:
+        video_conf_url = f"https://meet.jit.si/calendae-{uuid.uuid4().hex[:12]}"
+
     booking = Booking(
         event_type_id=event_type.id,
         user_id=target_user.id,
@@ -1186,6 +1223,7 @@ def create_booking(
         start_time=payload.start_time,
         end_time=payload.end_time,
         manage_token=secrets.token_urlsafe(32),
+        video_conference_url=video_conf_url,
     )
     db.add(booking)
     db.commit()
@@ -1222,6 +1260,9 @@ def create_booking(
                     db.commit()
         except Exception:
             pass
+
+    # Send confirmation email
+    send_booking_confirmation(company, target_user, booking, event_type)
 
     return booking
 

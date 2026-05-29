@@ -9,6 +9,7 @@ export interface Features {
   webhooks: boolean;
   payments: boolean;
   timezone_detection: boolean;
+  video_conferencing: boolean;
 }
 
 const defaults: Features = {
@@ -20,6 +21,7 @@ const defaults: Features = {
   webhooks: false,
   payments: false,
   timezone_detection: true,
+  video_conferencing: true,
 };
 
 export function useFeatures(): Features {

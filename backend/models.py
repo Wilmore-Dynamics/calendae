@@ -122,6 +122,7 @@ class Booking(Base):
     status = Column(String, default="confirmed")
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     manage_token = Column(String, unique=True, nullable=False, index=True)
+    video_conference_url = Column(String, nullable=True)
     google_event_id = Column(String, nullable=True)
 
     event_type = relationship("EventType", back_populates="bookings")
