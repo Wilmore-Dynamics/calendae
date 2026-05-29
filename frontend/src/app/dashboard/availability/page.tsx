@@ -30,10 +30,7 @@ export default function AvailabilityPage() {
   const loadAvailabilities = () => {
     if (!targetUserId) return;
     if (selectedMember && isAdmin) {
-      fetch(`/api/companies/members/${selectedMember}/availability`)
-        .then(r => r.ok ? r.json() : [])
-        .then(setAvailabilities)
-        .catch(() => {});
+      api.listMemberAvailability(selectedMember).then(setAvailabilities).catch(() => {});
     } else {
       api.listAvailabilities().then(setAvailabilities).catch(() => {});
     }
@@ -42,10 +39,7 @@ export default function AvailabilityPage() {
   const loadDaysOff = () => {
     if (!targetUserId) return;
     if (selectedMember && isAdmin) {
-      fetch(`/api/companies/members/${selectedMember}/days-off`)
-        .then(r => r.ok ? r.json() : [])
-        .then(setDaysOff)
-        .catch(() => {});
+      api.listMemberDaysOff(selectedMember).then(setDaysOff).catch(() => {});
     } else {
       api.listMyDaysOff().then(setDaysOff).catch(() => {});
     }
@@ -53,10 +47,7 @@ export default function AvailabilityPage() {
 
   useEffect(() => {
     if (isAdmin) {
-      fetch('/api/companies/members')
-        .then(r => r.ok ? r.json() : [])
-        .then(setMembers)
-        .catch(() => {});
+      api.listMembers().then(setMembers).catch(() => {});
     }
   }, [isAdmin]);
 
@@ -66,11 +57,7 @@ export default function AvailabilityPage() {
   const addSlot = async (day: number) => {
     try {
       if (selectedMember && isAdmin) {
-        await fetch(`/api/companies/members/${selectedMember}/availability`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ day_of_week: day, start_time: '09:00', end_time: '17:00' }),
-        });
+        await api.createMemberAvailability(selectedMember, { day_of_week: day, start_time: '09:00', end_time: '17:00' });
       } else {
         await api.createAvailability({ day_of_week: day, start_time: '09:00', end_time: '17:00' });
       }
@@ -85,14 +72,11 @@ export default function AvailabilityPage() {
     const slot = availabilities.find((a) => a.id === id);
     if (!slot) return;
     try {
+      const data = { day_of_week: day, start_time: field === 'start_time' ? value : slot.start_time, end_time: field === 'end_time' ? value : slot.end_time };
       if (selectedMember && isAdmin) {
-        await fetch(`/api/companies/members/${selectedMember}/availability/${id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ day_of_week: day, start_time: field === 'start_time' ? value : slot.start_time, end_time: field === 'end_time' ? value : slot.end_time }),
-        });
+        await api.updateMemberAvailability(selectedMember, id, data);
       } else {
-        await api.updateAvailability(id, { day_of_week: day, start_time: field === 'start_time' ? value : slot.start_time, end_time: field === 'end_time' ? value : slot.end_time });
+        await api.updateAvailability(id, data);
       }
       loadAvailabilities();
     } catch {
@@ -103,7 +87,7 @@ export default function AvailabilityPage() {
   const removeSlot = async (id: string) => {
     try {
       if (selectedMember && isAdmin) {
-        await fetch(`/api/companies/members/${selectedMember}/availability/${id}`, { method: 'DELETE' });
+        await api.deleteMemberAvailability(selectedMember, id);
       } else {
         await api.deleteAvailability(id);
       }
@@ -118,11 +102,7 @@ export default function AvailabilityPage() {
     if (!newDayOff) return;
     try {
       if (selectedMember && isAdmin) {
-        await fetch(`/api/companies/members/${selectedMember}/days-off`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ date: newDayOff, reason: newDayOffReason || undefined }),
-        });
+        await api.createMemberDayOff(selectedMember, newDayOff, newDayOffReason || undefined);
       } else {
         await api.createDayOff(newDayOff, newDayOffReason || undefined);
       }
@@ -138,7 +118,7 @@ export default function AvailabilityPage() {
   const handleRemoveDayOff = async (id: string) => {
     try {
       if (selectedMember && isAdmin) {
-        await fetch(`/api/companies/members/${selectedMember}/days-off/${id}`, { method: 'DELETE' });
+        await api.deleteMemberDayOff(selectedMember, id);
       } else {
         await api.deleteDayOff(id);
       }

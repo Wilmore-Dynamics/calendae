@@ -1306,7 +1306,7 @@ def available_slots(
     slug: str,
     date: str = Query(...),
     event_type_id: Optional[str] = Query(None),
-    timezone: str = Query("UTC"),
+    visitor_tz: str = Query("UTC", alias="timezone"),
     db: Session = Depends(get_db),
 ):
     user = db.query(User).filter(

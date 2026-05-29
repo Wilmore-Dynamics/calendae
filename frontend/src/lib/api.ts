@@ -435,3 +435,37 @@ export async function createDayOff(date: string, reason?: string): Promise<DayOf
 export async function deleteDayOff(id: string): Promise<void> {
   return request<void>(`/api/days-off/${id}`, { method: 'DELETE' });
 }
+
+export async function listMemberAvailability(memberId: string): Promise<Availability[]> {
+  return request<Availability[]>(`/api/companies/members/${memberId}/availability`);
+}
+
+export async function createMemberAvailability(memberId: string, data: { day_of_week: number; start_time: string; end_time: string }): Promise<Availability> {
+  return request<Availability>(`/api/companies/members/${memberId}/availability`, {
+    method: 'POST', body: JSON.stringify(data),
+  });
+}
+
+export async function updateMemberAvailability(memberId: string, availId: string, data: { day_of_week: number; start_time: string; end_time: string }): Promise<Availability> {
+  return request<Availability>(`/api/companies/members/${memberId}/availability/${availId}`, {
+    method: 'PUT', body: JSON.stringify(data),
+  });
+}
+
+export async function deleteMemberAvailability(memberId: string, availId: string): Promise<void> {
+  return request<void>(`/api/companies/members/${memberId}/availability/${availId}`, { method: 'DELETE' });
+}
+
+export async function listMemberDaysOff(memberId: string): Promise<DayOff[]> {
+  return request<DayOff[]>(`/api/companies/members/${memberId}/days-off`);
+}
+
+export async function createMemberDayOff(memberId: string, date: string, reason?: string): Promise<DayOff> {
+  return request<DayOff>(`/api/companies/members/${memberId}/days-off`, {
+    method: 'POST', body: JSON.stringify({ date, reason }),
+  });
+}
+
+export async function deleteMemberDayOff(memberId: string, id: string): Promise<void> {
+  return request<void>(`/api/companies/members/${memberId}/days-off/${id}`, { method: 'DELETE' });
+}

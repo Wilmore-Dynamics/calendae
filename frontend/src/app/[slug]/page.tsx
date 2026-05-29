@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, use } from 'react';
+import { useSearchParams } from 'next/navigation';
 import * as api from '@/lib/api';
 import Avatar from '@/components/Avatar';
 
@@ -37,6 +38,7 @@ export default function PublicBookingPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = use(params);
+  const searchParams = useSearchParams();
 
   const [profile, setProfile] = useState<api.PublicProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -67,6 +69,29 @@ export default function PublicBookingPage({
       .catch(() => setError('Page non trouvée'))
       .finally(() => setLoading(false));
   }, [slug]);
+
+  // Auto-select event type from URL query param
+  useEffect(() => {
+    if (!profile || !searchParams) return;
+    const typeId = searchParams.get('event_type_id');
+    if (!typeId) return;
+    const match = profile.event_types.find(et => et.id === typeId);
+    if (match) {
+      setSelectedType(match);
+      setSelectedSlot(null);
+    }
+  }, [profile, searchParams]);
+
+  // Pre-fill booker info from URL query params
+  useEffect(() => {
+    if (!searchParams) return;
+    const name = searchParams.get('name');
+    const email = searchParams.get('email');
+    const phone = searchParams.get('phone');
+    if (name) setBookerName(name);
+    if (email) setBookerEmail(email);
+    if (phone) setBookerPhone(phone);
+  }, [searchParams]);
 
   useEffect(() => {
     if (!selectedType || !selectedDate) return;
